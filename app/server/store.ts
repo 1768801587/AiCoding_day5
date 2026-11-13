@@ -20,6 +20,10 @@ export interface PostStore {
   create(text: string, createdAt?: number): Post
   /** 删除指定 id，返回是否真的删掉了。 */
   remove(id: string): boolean
+  /** 设置点赞状态（幂等）：仅在状态真正变化时增减计数，未命中返回 undefined。 */
+  setLiked(id: string, liked: boolean): Post | undefined
+  /** 设置收藏状态（幂等）：只切换布尔值，未命中返回 undefined。 */
+  setFavorited(id: string, favorited: boolean): Post | undefined
   /** 批量写入（按 id 去重，已存在的保留服务端原有数据）。 */
   importMany(posts: readonly Post[]): ImportSummary
   /** 预演导入后的总条数，用于路由层在写入前判断是否超限。 */
@@ -80,12 +84,58 @@ export function createPostStore(): PostStore {
     },
 
     create(text: string, createdAt: number = Date.now()): Post {
-      const post: Post = { id: nextId(createdAt), text, createdAt }
+      // 新动态一律从「未点赞、未收藏」的干净状态开始
+      const post: Post = {
+        id: nextId(createdAt),
+        text,
+        createdAt,
+        likes: 0,
+        liked: false,
+        favorited: false,
+      }
 
       posts.set(post.id, post)
       invalidate()
 
       return { ...post }
+    },
+
+    setLiked(id: string, liked: boolean): Post | undefined {
+      const post = posts.get(id)
+
+      if (!post) {
+        return undefined
+      }
+
+      const currentLikes = post.likes ?? 0
+      const wasLiked = post.liked === true
+      // 幂等语义：状态没变时计数不动，避免重复点击把计数越加越多
+      let likes = currentLikes
+
+      if (liked !== wasLiked) {
+        likes = liked ? currentLikes + 1 : Math.max(0, currentLikes - 1)
+      }
+
+      // 整体替换而不是原地 mutate，保证外部拿到的旧快照不被偷偷改写
+      const updated: Post = { ...post, likes, liked }
+      posts.set(id, updated)
+      invalidate()
+
+      return { ...updated }
+    },
+
+    setFavorited(id: string, favorited: boolean): Post | undefined {
+      const post = posts.get(id)
+
+      if (!post) {
+        return undefined
+      }
+
+      const updated: Post = { ...post, favorited }
+      posts.set(id, updated)
+      invalidate()
+
+      return { ...updated }
     },
 
     remove(id: string): boolean {
@@ -109,7 +159,15 @@ export function createPostStore(): PostStore {
           continue
         }
 
-        posts.set(post.id, { id: post.id, text: post.text, createdAt: post.createdAt })
+        // 点赞/收藏属于服务端状态，导入时一律重置，不接受外部伪造的计数
+        posts.set(post.id, {
+          id: post.id,
+          text: post.text,
+          createdAt: post.createdAt,
+          likes: 0,
+          liked: false,
+          favorited: false,
+        })
         imported += 1
       }
 

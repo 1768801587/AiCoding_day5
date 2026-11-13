@@ -337,6 +337,206 @@ describe('DELETE /api/posts/:id', () => {
   })
 })
 
+/**
+ * 点赞 / 收藏端点：无请求体、无 Content-Type 要求，全部为幂等操作，
+ * 成功时返回 200 与完整的 Post（前端直接用响应替换本地那条数据）。
+ */
+describe('PUT /api/posts/:id/like', () => {
+  it('成功时返回 200 与 liked 为 true、likes 为 1 的动态', async () => {
+    const store = createPostStore()
+    const post = store.create('待点赞', 1_000)
+    const app = createApp(store)
+
+    const res = await app.request(`/api/posts/${post.id}/like`, { method: 'PUT' })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post
+    expect(body.id).toBe(post.id)
+    expect(body.text).toBe('待点赞')
+    expect(body.likes).toBe(1)
+    expect(body.liked).toBe(true)
+    expect(body.favorited).toBe(false)
+    expect(store.get(post.id)).toEqual(body)
+  })
+
+  it('重复 PUT 幂等：likes 仍为 1', async () => {
+    const store = createPostStore()
+    const post = store.create('重复点赞', 1_000)
+    const app = createApp(store)
+
+    await app.request(`/api/posts/${post.id}/like`, { method: 'PUT' })
+    const res = await app.request(`/api/posts/${post.id}/like`, { method: 'PUT' })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post
+    expect(body.likes).toBe(1)
+    expect(body.liked).toBe(true)
+  })
+
+  it('未命中时返回 404 NOT_FOUND', async () => {
+    const res = await createApp(createPostStore()).request('/api/posts/missing-id/like', {
+      method: 'PUT',
+    })
+
+    expect(res.status).toBe(404)
+    expectErrorBody(await res.json(), 'NOT_FOUND')
+  })
+})
+
+describe('DELETE /api/posts/:id/like', () => {
+  it('成功时返回 200 与 liked 为 false、likes 为 0 的动态', async () => {
+    const store = createPostStore()
+    const post = store.create('取消点赞', 1_000)
+    const app = createApp(store)
+    await app.request(`/api/posts/${post.id}/like`, { method: 'PUT' })
+
+    const res = await app.request(`/api/posts/${post.id}/like`, { method: 'DELETE' })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post
+    expect(body.likes).toBe(0)
+    expect(body.liked).toBe(false)
+    expect(store.get(post.id)).toEqual(body)
+  })
+
+  it('重复 DELETE 幂等：likes 不会变成负数', async () => {
+    const store = createPostStore()
+    const post = store.create('重复取消', 1_000)
+    const app = createApp(store)
+
+    const first = await app.request(`/api/posts/${post.id}/like`, { method: 'DELETE' })
+    const second = await app.request(`/api/posts/${post.id}/like`, { method: 'DELETE' })
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    const body = (await second.json()) as Post
+    expect(body.likes).toBe(0)
+    expect(body.liked).toBe(false)
+  })
+
+  it('未命中时返回 404 NOT_FOUND', async () => {
+    const res = await createApp(createPostStore()).request('/api/posts/missing-id/like', {
+      method: 'DELETE',
+    })
+
+    expect(res.status).toBe(404)
+    expectErrorBody(await res.json(), 'NOT_FOUND')
+  })
+})
+
+describe('PUT /api/posts/:id/favorite', () => {
+  it('成功时返回 200 与 favorited 为 true 的动态', async () => {
+    const store = createPostStore()
+    const post = store.create('待收藏', 1_000)
+    const app = createApp(store)
+
+    const res = await app.request(`/api/posts/${post.id}/favorite`, { method: 'PUT' })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post
+    expect(body.id).toBe(post.id)
+    expect(body.favorited).toBe(true)
+    expect(body.likes).toBe(0)
+    expect(body.liked).toBe(false)
+    expect(store.get(post.id)).toEqual(body)
+  })
+
+  it('重复 PUT 幂等', async () => {
+    const store = createPostStore()
+    const post = store.create('重复收藏', 1_000)
+    const app = createApp(store)
+
+    await app.request(`/api/posts/${post.id}/favorite`, { method: 'PUT' })
+    const res = await app.request(`/api/posts/${post.id}/favorite`, { method: 'PUT' })
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as Post).favorited).toBe(true)
+  })
+
+  it('未命中时返回 404 NOT_FOUND', async () => {
+    const res = await createApp(createPostStore()).request('/api/posts/missing-id/favorite', {
+      method: 'PUT',
+    })
+
+    expect(res.status).toBe(404)
+    expectErrorBody(await res.json(), 'NOT_FOUND')
+  })
+})
+
+describe('DELETE /api/posts/:id/favorite', () => {
+  it('成功时返回 200 与 favorited 为 false 的动态', async () => {
+    const store = createPostStore()
+    const post = store.create('取消收藏', 1_000)
+    const app = createApp(store)
+    await app.request(`/api/posts/${post.id}/favorite`, { method: 'PUT' })
+
+    const res = await app.request(`/api/posts/${post.id}/favorite`, { method: 'DELETE' })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post
+    expect(body.favorited).toBe(false)
+    expect(store.get(post.id)).toEqual(body)
+  })
+
+  it('重复 DELETE 幂等', async () => {
+    const store = createPostStore()
+    const post = store.create('重复取消收藏', 1_000)
+    const app = createApp(store)
+
+    await app.request(`/api/posts/${post.id}/favorite`, { method: 'DELETE' })
+    const res = await app.request(`/api/posts/${post.id}/favorite`, { method: 'DELETE' })
+
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as Post).favorited).toBe(false)
+  })
+
+  it('未命中时返回 404 NOT_FOUND', async () => {
+    const res = await createApp(createPostStore()).request('/api/posts/missing-id/favorite', {
+      method: 'DELETE',
+    })
+
+    expect(res.status).toBe(404)
+    expectErrorBody(await res.json(), 'NOT_FOUND')
+  })
+})
+
+describe('点赞 / 收藏与列表的联动', () => {
+  it('点赞后 GET /api/posts 返回新状态', async () => {
+    const store = createPostStore()
+    const post = store.create('联动', 1_000)
+    const app = createApp(store)
+
+    await app.request(`/api/posts/${post.id}/like`, { method: 'PUT' })
+    await app.request(`/api/posts/${post.id}/favorite`, { method: 'PUT' })
+
+    const res = await app.request('/api/posts')
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Post[]
+    expect(body[0].id).toBe(post.id)
+    expect(body[0].likes).toBe(1)
+    expect(body[0].liked).toBe(true)
+    expect(body[0].favorited).toBe(true)
+  })
+
+  it('POST /api/posts 创建后默认 likes 为 0、liked 与 favorited 为 false', async () => {
+    const store = createPostStore()
+    const app = createApp(store)
+
+    const res = await app.request('/api/posts', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ text: '新发布' }),
+    })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Post
+    expect(body.likes).toBe(0)
+    expect(body.liked).toBe(false)
+    expect(body.favorited).toBe(false)
+  })
+})
+
 describe('未匹配路由', () => {
   it.each([
     ['/api/unknown', 'GET'],
