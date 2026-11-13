@@ -31,4 +31,5 @@ out/
 # IDE
 .idea/
 .vscode/
+.codebuddy/
 *.swp
