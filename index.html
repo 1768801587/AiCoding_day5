@@ -4,50 +4,181 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Mingle — 一个轻量的本地社交动态页面" />
-  <title>Mingle · 分享此刻</title>
+  <title>Mingle · 记录当下，分享此刻</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="js/app.js" defer></script>
 </head>
 <body>
+  <!-- 背景装饰 -->
   <div class="bg-orb bg-orb--one" aria-hidden="true"></div>
   <div class="bg-orb bg-orb--two" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb--three" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="./" aria-label="Mingle 首页">
+        <span class="brand__logo" aria-hidden="true">M</span>
+        <span class="brand__text">
+          <span class="brand__name">Mingle</span>
+          <span class="brand__sub">轻社交动态</span>
+        </span>
+      </a>
+      <div class="topbar__actions">
+        <span class="status-pill">
+          <span class="status-pill__dot" aria-hidden="true"></span>
+          本地模式
+        </span>
+        <span class="chip">无需登录</span>
+      </div>
+    </div>
+  </header>
 
   <main class="app">
-    <header class="app__header">
-      <h1 class="app__title">
-        <span class="app__logo" aria-hidden="true">M</span>
-        Mingle
-      </h1>
-      <p class="app__subtitle">记录当下，分享此刻</p>
-    </header>
-
-    <section class="composer" aria-label="发布动态">
-      <label class="composer__label" for="postText">此刻在想什么？</label>
-      <textarea
-        id="postText"
-        class="composer__input"
-        rows="3"
-        maxlength="500"
-        placeholder="写下你的动态…"
-      ></textarea>
-      <div class="composer__footer">
-        <span class="composer__count" id="charCount">0 / 500</span>
-        <button type="button" class="composer__submit" id="publishBtn">发布</button>
+    <!-- Hero 主视觉 -->
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero__content">
+        <span class="hero__eyebrow">Welcome to Mingle</span>
+        <h1 class="hero__title" id="heroTitle">记录当下，<br />分享此刻</h1>
+        <p class="hero__desc">
+          一个轻量的动态记录空间。写下此刻的心情与想法，所有内容都保存在你的浏览器本地，简单、安全且私密。
+        </p>
+      </div>
+      <div class="hero__stats" aria-label="数据统计">
+        <div class="stat">
+          <span class="stat__value" id="statPosts">0</span>
+          <span class="stat__label">动态总数</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value" id="statToday">0</span>
+          <span class="stat__label">今日发布</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value" id="statChars">0</span>
+          <span class="stat__label">累计字数</span>
+        </div>
       </div>
     </section>
 
-    <section class="feed" aria-label="动态列表">
-      <div class="feed__head">
-        <h2 class="feed__title">最新动态</h2>
-        <span class="feed__count" id="postCount">0 条</span>
+    <!-- 双栏内容 -->
+    <div class="layout">
+      <div class="layout__main">
+        <!-- 发布区 -->
+        <section class="composer" aria-label="发布动态">
+          <div class="composer__head">
+            <div class="composer__avatar" aria-hidden="true">M</div>
+            <div class="composer__intro">
+              <span class="composer__name">Mingler</span>
+              <span class="composer__hint">此刻在想什么？</span>
+            </div>
+          </div>
+
+          <label class="sr-only" for="postText">动态内容</label>
+          <textarea
+            id="postText"
+            class="composer__input"
+            rows="3"
+            maxlength="500"
+            placeholder="写下你的动态…"
+          ></textarea>
+
+          <div class="composer__footer">
+            <span class="composer__count" id="charCount">0 / 500</span>
+            <div class="composer__actions">
+              <span class="composer__tip">Ctrl / ⌘ + Enter 快速发布</span>
+              <button type="button" class="composer__submit" id="publishBtn">
+                <span>发布</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 2 11 13" />
+                  <path d="M22 2 15 22l-4-9-9-4Z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 动态流 -->
+        <section class="feed" aria-label="动态列表">
+          <div class="feed__head">
+            <h2 class="feed__title">最新动态</h2>
+            <span class="feed__count" id="postCount">0 条</span>
+          </div>
+
+          <ul class="feed__list" id="postList"></ul>
+
+          <div class="empty" id="emptyState" hidden>
+            <div class="empty__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+              </svg>
+            </div>
+            <h3 class="empty__title">这里还很安静</h3>
+            <p class="empty__text">还没有动态，发布第一条吧～</p>
+          </div>
+        </section>
       </div>
-      <ul class="feed__list" id="postList"></ul>
-      <div class="empty" id="emptyState" hidden>
-        <div class="empty__icon" aria-hidden="true">✦</div>
-        <p class="empty__text">还没有动态，发布第一条吧～</p>
-      </div>
-    </section>
+
+      <!-- 侧栏 -->
+      <aside class="layout__side" aria-label="侧边信息">
+        <section class="side-card profile">
+          <div class="profile__cover" aria-hidden="true"></div>
+          <div class="profile__avatar" aria-hidden="true">M</div>
+          <div class="profile__body">
+            <h3 class="profile__name">Mingler</h3>
+            <p class="profile__bio">在 Mingle 记录日常的普通人。</p>
+            <div class="profile__tags">
+              <span class="chip chip--soft">本地存储</span>
+              <span class="chip chip--soft">轻社交</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="side-card">
+          <h3 class="side-card__title">小提示</h3>
+          <ul class="tips">
+            <li class="tips__item">
+              <span class="tips__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </span>
+              在发布框写下此刻的想法
+            </li>
+            <li class="tips__item">
+              <span class="tips__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z" />
+                </svg>
+              </span>
+              按 Ctrl / ⌘ + Enter 快速发布
+            </li>
+            <li class="tips__item">
+              <span class="tips__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </span>
+              数据仅保存在本地浏览器
+            </li>
+          </ul>
+        </section>
+
+        <section class="side-card side-card--gradient">
+          <h3 class="side-card__title">关于 Mingle</h3>
+          <p class="side-card__text">
+            一个纯前端、零依赖的轻量动态页面，无需后端，专注于记录与分享当下的心情。
+          </p>
+        </section>
+      </aside>
+    </div>
   </main>
+
+  <footer class="footer">
+    <p class="footer__text">Mingle · 数据仅存于本地浏览器</p>
+  </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>

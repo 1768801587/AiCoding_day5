@@ -18,6 +18,9 @@
   var postCount = document.getElementById('postCount');
   var emptyState = document.getElementById('emptyState');
   var toastEl = document.getElementById('toast');
+  var statPosts = document.getElementById('statPosts');
+  var statToday = document.getElementById('statToday');
+  var statChars = document.getElementById('statChars');
 
   var toastTimer = null;
 
@@ -115,6 +118,52 @@
     }, 2000);
   }
 
+  /* ====================== 统计 ====================== */
+
+  /**
+   * 判断两个时间是否落在同一本地日期。
+   * @param {Date} a
+   * @param {Date} b
+   * @returns {boolean}
+   */
+  function isSameDay(a, b) {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  /**
+   * 更新 Hero 区的展示性统计（动态总数 / 今日发布 / 累计字数）。
+   * 元素缺失时安全跳过，保证向后兼容。
+   * @param {Array} posts
+   */
+  function updateStats(posts) {
+    var total = posts.length;
+    var today = 0;
+    var chars = 0;
+    var now = new Date();
+
+    posts.forEach(function (post) {
+      chars += post.text.length;
+      if (isSameDay(new Date(post.createdAt), now)) {
+        today += 1;
+      }
+    });
+
+    if (statPosts) {
+      statPosts.textContent = String(total);
+    }
+    if (statToday) {
+      statToday.textContent = String(today);
+    }
+    if (statChars) {
+      statChars.textContent =
+        chars > 9999 ? (chars / 1000).toFixed(1) + 'k' : String(chars);
+    }
+  }
+
   /* ====================== 渲染层 ====================== */
 
   /**
@@ -183,6 +232,7 @@
     }
 
     postCount.textContent = sorted.length + ' 条';
+    updateStats(sorted);
   }
 
   /* ====================== 事件处理 ====================== */
