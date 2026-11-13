@@ -83,6 +83,18 @@ describe('createPostStore - create', () => {
     expect(ids.size).toBe(50)
     expect(store.count()).toBe(50)
   })
+
+  it('新动态的点赞/收藏字段默认为 0、false、false', () => {
+    const store = createPostStore()
+
+    const post = store.create('默认状态', 1)
+
+    expect(post.likes).toBe(0)
+    expect(post.liked).toBe(false)
+    expect(post.favorited).toBe(false)
+    // 读回的数据与返回值保持一致，不能只改返回值不改内部
+    expect(store.get(post.id)).toEqual(post)
+  })
 })
 
 describe('createPostStore - get', () => {
@@ -205,5 +217,156 @@ describe('createPostStore - importMany', () => {
     ])
 
     expect(store.list().map((post) => post.text)).toEqual(['新', '中', '旧'])
+  })
+
+  it('丢弃入参里的点赞/收藏字段，统一写入默认状态', () => {
+    const store = createPostStore()
+
+    store.importMany([
+      makePost({ id: 'f1', createdAt: 1, likes: 99, liked: true, favorited: true }),
+      makePost({ id: 'f2', createdAt: 2, likes: -5, liked: false, favorited: false }),
+    ])
+
+    const imported = store.get('f1')
+    expect(imported?.likes).toBe(0)
+    expect(imported?.liked).toBe(false)
+    expect(imported?.favorited).toBe(false)
+
+    expect(store.get('f2')?.likes).toBe(0)
+    expect(store.get('f2')?.liked).toBe(false)
+    expect(store.get('f2')?.favorited).toBe(false)
+  })
+})
+
+describe('createPostStore - setLiked', () => {
+  it('首次点赞后 likes 为 1、liked 为 true', () => {
+    const store = createPostStore()
+    const post = store.create('待点赞', 1)
+
+    const updated = store.setLiked(post.id, true)
+
+    expect(updated?.likes).toBe(1)
+    expect(updated?.liked).toBe(true)
+    expect(updated?.favorited).toBe(false)
+    expect(store.get(post.id)).toEqual(updated)
+  })
+
+  it('重复点赞幂等：不会重复累加计数', () => {
+    const store = createPostStore()
+    const post = store.create('重复点赞', 1)
+
+    store.setLiked(post.id, true)
+    const second = store.setLiked(post.id, true)
+    const third = store.setLiked(post.id, true)
+
+    expect(second?.likes).toBe(1)
+    expect(third?.likes).toBe(1)
+    expect(third?.liked).toBe(true)
+  })
+
+  it('取消点赞后计数减 1 且 liked 回到 false', () => {
+    const store = createPostStore()
+    const post = store.create('取消点赞', 1)
+
+    store.setLiked(post.id, true)
+    const updated = store.setLiked(post.id, false)
+
+    expect(updated?.likes).toBe(0)
+    expect(updated?.liked).toBe(false)
+  })
+
+  it('计数已为 0 时重复取消不会变成负数', () => {
+    const store = createPostStore()
+    const post = store.create('未点赞', 1)
+
+    const first = store.setLiked(post.id, false)
+    const second = store.setLiked(post.id, false)
+
+    expect(first?.likes).toBe(0)
+    expect(first?.liked).toBe(false)
+    expect(second?.likes).toBe(0)
+    expect(second?.liked).toBe(false)
+  })
+
+  it('不存在的 id 返回 undefined 且不影响其它数据', () => {
+    const store = createPostStore()
+    const post = store.create('保留', 1)
+
+    expect(store.setLiked('missing-id', true)).toBeUndefined()
+    expect(store.get(post.id)).toEqual(post)
+    expect(store.count()).toBe(1)
+  })
+
+  it('返回的是副本：改动返回值不会污染内部数据', () => {
+    const store = createPostStore()
+    const post = store.create('副本', 1)
+
+    const updated = store.setLiked(post.id, true)
+    expect(updated).toBeDefined()
+
+    if (updated) {
+      updated.likes = 999
+      updated.text = '被外部篡改'
+    }
+
+    expect(store.get(post.id)?.likes).toBe(1)
+    expect(store.get(post.id)?.text).toBe('副本')
+  })
+
+  it('点赞后 list 立即反映新状态（排序缓存已失效）', () => {
+    const store = createPostStore()
+    const post = store.create('进列表', 1)
+
+    // 先读一次，把排序缓存填充起来
+    expect(store.list()[0].likes).toBe(0)
+
+    store.setLiked(post.id, true)
+
+    expect(store.list()[0].likes).toBe(1)
+    expect(store.list()[0].liked).toBe(true)
+  })
+})
+
+describe('createPostStore - setFavorited', () => {
+  it('收藏与取消收藏只切换布尔值', () => {
+    const store = createPostStore()
+    const post = store.create('待收藏', 1)
+
+    const favorited = store.setFavorited(post.id, true)
+    expect(favorited?.favorited).toBe(true)
+    expect(favorited?.likes).toBe(0)
+    expect(favorited?.liked).toBe(false)
+
+    const unfavorited = store.setFavorited(post.id, false)
+    expect(unfavorited?.favorited).toBe(false)
+  })
+
+  it('重复设置同一收藏状态幂等', () => {
+    const store = createPostStore()
+    const post = store.create('重复收藏', 1)
+
+    store.setFavorited(post.id, true)
+    const again = store.setFavorited(post.id, true)
+
+    expect(again?.favorited).toBe(true)
+    expect(store.list()[0].favorited).toBe(true)
+  })
+
+  it('不存在的 id 返回 undefined', () => {
+    const store = createPostStore()
+
+    expect(store.setFavorited('missing-id', true)).toBeUndefined()
+  })
+
+  it('收藏不影响已有点赞状态', () => {
+    const store = createPostStore()
+    const post = store.create('点赞后收藏', 1)
+
+    store.setLiked(post.id, true)
+    const favorited = store.setFavorited(post.id, true)
+
+    expect(favorited?.liked).toBe(true)
+    expect(favorited?.likes).toBe(1)
+    expect(favorited?.favorited).toBe(true)
   })
 })

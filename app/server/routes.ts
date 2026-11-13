@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { MAX_LENGTH } from '../src/constants'
+import type { Post } from '../src/types'
 import { API_PREFIX, MAX_BODY_BYTES, MAX_POSTS } from './constants'
 import { errorResponse } from './errors'
 import type { PostStore } from './store'
@@ -57,6 +58,14 @@ function parseJson(text: string): ParsedJson {
   }
 }
 
+/**
+ * 点赞 / 收藏端点的统一响应：命中时返回完整动态，未命中统一 404。
+ * store 用 `undefined` 表达未命中，这里翻译成 HTTP 响应，不向外抛异常。
+ */
+function respondPost(c: Context, post: Post | undefined): Response {
+  return post ? c.json(post) : errorResponse(c, 'NOT_FOUND', '动态不存在')
+}
+
 /** 注册 `/api` 下的全部路由；数据读写统一委托给传入的 store。 */
 export function createApiRoutes(store: PostStore): Hono {
   const routes = new Hono()
@@ -77,6 +86,24 @@ export function createApiRoutes(store: PostStore): Hono {
     store.remove(c.req.param('id'))
       ? c.body(null, 204)
       : errorResponse(c, 'NOT_FOUND', '动态不存在'),
+  )
+
+  // 点赞 / 收藏：幂等切换，无请求体，因此不校验 Content-Type 与体积；
+  // 成功时返回完整的动态，前端直接用响应替换本地那一条
+  routes.put(`${API_PREFIX}/posts/:id/like`, (c) =>
+    respondPost(c, store.setLiked(c.req.param('id'), true)),
+  )
+
+  routes.delete(`${API_PREFIX}/posts/:id/like`, (c) =>
+    respondPost(c, store.setLiked(c.req.param('id'), false)),
+  )
+
+  routes.put(`${API_PREFIX}/posts/:id/favorite`, (c) =>
+    respondPost(c, store.setFavorited(c.req.param('id'), true)),
+  )
+
+  routes.delete(`${API_PREFIX}/posts/:id/favorite`, (c) =>
+    respondPost(c, store.setFavorited(c.req.param('id'), false)),
   )
 
   routes.post(`${API_PREFIX}/posts`, async (c) => {
