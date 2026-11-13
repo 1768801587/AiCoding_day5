@@ -1,8 +1,6 @@
 # Mingle · Vue 3 + Pinia + Hono 版
 
-这是根目录纯静态版 Mingle 的 **TDD 重写版**：前端为 Vue 3 + Pinia + TypeScript + Vite，后端为 **Hono + RESTful API + 内存存储**。动态数据不再保存在浏览器 `localStorage`，而是由服务端统一保管（字段为 `{ id, text, createdAt, likes, liked, favorited }`，`id` 与 `createdAt` 由服务端生成，点赞/收藏状态同样由服务端维护）。
-
-根目录的 `index.html`、`css/`、`js/` 仍是纯前端 localStorage 版本，保持原样、互不影响。
+Mingle 采用 **Vue 3 + Pinia + TypeScript + Vite** 作为前端，后端为 **Hono + RESTful API + 内存存储**，开发过程遵循 TDD（先写测试再实现）。动态数据由服务端统一保管（字段为 `{ id, text, createdAt, likes, liked, favorited }`，`id` 与 `createdAt` 由服务端生成，点赞/收藏状态同样由服务端维护）。
 
 > 内存存储的限制：**服务进程重启后动态数据会清空**，需要长期保存请使用侧栏「导出 JSON」。
 
@@ -29,7 +27,7 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 
 > 依赖锁定在 Node 18 兼容版本（Vite 5 / Vitest 1 / Hono 4），`tsx` 直接运行服务端 TypeScript，无需额外构建步骤。
 
-## 功能（本轮 8 项改进）
+## 功能
 
 | 能力 | 说明 |
 | --- | --- |
@@ -71,8 +69,6 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | 键名 | 内容 |
 | --- | --- |
 | `mingle_draft` | 未发布的草稿文本（纯 UI 状态，刷新不丢，发布成功即清空） |
-
-> 说明：本轮改进只落在 `app/` 目录，`app/src/assets/style.css` 已新增搜索栏、删除按钮、数据管理卡片与加载错误条样式，与根目录 `css/style.css` 不再完全一致；根目录静态版的功能与样式保持原样。
 
 ## TDD 流程
 
