@@ -15,9 +15,15 @@ export function isValidPost(value: unknown): value is Post {
   return typeof (value as Partial<Post>).text === 'string'
 }
 
+/** 归一化点赞数：只接受有限非负数，其余（缺失、负数、NaN、字符串）一律归零。 */
+function normalizeLikes(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0
+}
+
 /**
  * 过滤脏数据并把缺失字段归一化。
  * 保存时间未知的历史数据按 0 处理（排在列表末尾），缺失 id 时生成一个新 id。
+ * 点赞/收藏字段缺失或类型不符时归零，避免历史数据与导入数据出现非法状态。
  */
 export function filterValidPosts(value: unknown): Post[] {
   if (!Array.isArray(value)) {
@@ -30,6 +36,9 @@ export function filterValidPosts(value: unknown): Post[] {
     createdAt: typeof post.createdAt === 'number' && Number.isFinite(post.createdAt)
       ? post.createdAt
       : 0,
+    likes: normalizeLikes(post.likes),
+    liked: post.liked === true,
+    favorited: post.favorited === true,
   }))
 }
 
@@ -142,8 +151,8 @@ function rangeStart(range: FeedFilter['range'], now: number): number {
 }
 
 /**
- * 按关键词与时间范围筛选动态。
- * 关键词做忽略大小写的子串匹配；`全部` + 空关键词时直接返回原数组的浅拷贝。
+ * 按关键词、时间范围与「只看收藏」筛选动态，三者可任意组合。
+ * 关键词做忽略大小写的子串匹配；无任何条件时直接返回原数组的浅拷贝。
  */
 export function filterPosts(
   posts: readonly Post[],
@@ -152,13 +161,17 @@ export function filterPosts(
 ): Post[] {
   const keyword = filter.keyword.trim().toLowerCase()
   const start = rangeStart(filter.range, now)
+  const onlyFavorited = filter.onlyFavorited === true
 
-  if (keyword === '' && start === Number.NEGATIVE_INFINITY) {
+  if (keyword === '' && start === Number.NEGATIVE_INFINITY && !onlyFavorited) {
     return [...posts]
   }
 
   return posts.filter((post) => {
     if (post.createdAt < start) {
+      return false
+    }
+    if (onlyFavorited && post.favorited !== true) {
       return false
     }
     return keyword === '' || post.text.toLowerCase().includes(keyword)

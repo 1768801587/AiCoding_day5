@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { Post } from '../types'
 import { parseImport, serializePosts } from './backup'
 
-const sample: Post[] = [{ id: 'a', text: '第一条', createdAt: 1700000000000 }]
+// 归一化后所有动态都带点赞/收藏字段，sample 取归一化后的形状，导出再解析应保持一致
+const sample: Post[] = [
+  { id: 'a', text: '第一条', createdAt: 1700000000000, likes: 0, liked: false, favorited: false },
+]
 
 describe('serializePosts', () => {
   it('输出带版本信息的导出结构', () => {

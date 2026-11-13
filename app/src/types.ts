@@ -1,8 +1,19 @@
-/** 一条动态。字段与旧版 localStorage 数据结构完全一致。 */
+/**
+ * 一条动态。
+ * `likes/liked/favorited` 为可选字段：历史数据与导入数据可能没有它们，
+ * 展示层一律用 `post.likes ?? 0`、`post.favorited === true` 兜底。
+ * 当前没有登录体系，点赞与收藏在服务端是全局唯一状态（点赞数只会是 0 或 1）。
+ */
 export interface Post {
   id: string
   text: string
   createdAt: number
+  /** 点赞总数，始终为非负整数。 */
+  likes?: number
+  /** 当前是否已点赞。 */
+  liked?: boolean
+  /** 当前是否已收藏。 */
+  favorited?: boolean
 }
 
 /** 发布失败的原因，由展示层决定对应文案。 */
@@ -24,6 +35,8 @@ export type FilterRange = 'all' | 'today' | 'week' | 'month'
 export interface FeedFilter {
   keyword: string
   range: FilterRange
+  /** 只看已收藏的动态；缺省等价于 false。 */
+  onlyFavorited?: boolean
 }
 
 /** 导入文件解析失败的原因。 */

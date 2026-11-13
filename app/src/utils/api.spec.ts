@@ -3,8 +3,22 @@ import type { Mock } from 'vitest'
 import type { Post } from '../types'
 import { createPost, createPostsApi, deletePost, fetchPosts, importPosts } from './api'
 
-const post: Post = { id: 'a1', text: '第一条', createdAt: 1_700_000_000_000 }
-const other: Post = { id: 'b2', text: '第二条', createdAt: 1_700_000_100_000 }
+const post: Post = {
+  id: 'a1',
+  text: '第一条',
+  createdAt: 1_700_000_000_000,
+  likes: 0,
+  liked: false,
+  favorited: false,
+}
+const other: Post = {
+  id: 'b2',
+  text: '第二条',
+  createdAt: 1_700_000_100_000,
+  likes: 0,
+  liked: false,
+  favorited: false,
+}
 
 type FetchMock = Mock<[url: string, init?: RequestInit], Promise<Response>>
 

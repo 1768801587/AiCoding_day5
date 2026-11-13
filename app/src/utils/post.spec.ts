@@ -84,6 +84,39 @@ describe('filterValidPosts', () => {
     expect(typeof post?.id).toBe('string')
     expect(post?.id).not.toBe('')
   })
+
+  it('缺失点赞/收藏字段时补齐为 0 与 false', () => {
+    const [post] = filterValidPosts([{ id: 'a', text: 'ok', createdAt: 1 }])
+
+    expect(post).toEqual({
+      id: 'a',
+      text: 'ok',
+      createdAt: 1,
+      likes: 0,
+      liked: false,
+      favorited: false,
+    })
+  })
+
+  it('保留合法的点赞/收藏状态', () => {
+    const [post] = filterValidPosts([
+      { id: 'a', text: 'ok', createdAt: 1, likes: 7, liked: true, favorited: true },
+    ])
+
+    expect(post?.likes).toBe(7)
+    expect(post?.liked).toBe(true)
+    expect(post?.favorited).toBe(true)
+  })
+
+  it('非法点赞/收藏值一律归零，避免脏数据进入 UI', () => {
+    const [post] = filterValidPosts([
+      { id: 'a', text: 'ok', createdAt: 1, likes: -3, liked: 'true', favorited: 1 },
+    ])
+
+    expect(post?.likes).toBe(0)
+    expect(post?.liked).toBe(false)
+    expect(post?.favorited).toBe(false)
+  })
 })
 
 describe('sortPostsDesc', () => {
@@ -252,5 +285,48 @@ describe('filterPosts', () => {
 
   it('无匹配时返回空数组', () => {
     expect(filterPosts(posts, { keyword: '不存在的词', range: 'all' }, now)).toEqual([])
+  })
+
+  it('onlyFavorited 只保留已收藏的动态，未标记的历史数据视为未收藏', () => {
+    const mixed = [
+      makePost({ id: 'fav', favorited: true, createdAt: now }),
+      makePost({ id: 'plain', favorited: false, createdAt: now }),
+      makePost({ id: 'legacy', createdAt: now }),
+    ]
+
+    const result = filterPosts(mixed, { keyword: '', range: 'all', onlyFavorited: true }, now)
+
+    expect(result.map((post) => post.id)).toEqual(['fav'])
+  })
+
+  it('onlyFavorited 可与关键词、时间范围组合', () => {
+    const mixed = [
+      makePost({
+        id: 'a',
+        text: '收藏的电影',
+        favorited: true,
+        createdAt: new Date(2024, 3, 28, 9, 0).getTime(),
+      }),
+      makePost({
+        id: 'b',
+        text: '未收藏的电影',
+        favorited: false,
+        createdAt: new Date(2024, 3, 28, 9, 0).getTime(),
+      }),
+      makePost({
+        id: 'c',
+        text: '收藏但太旧',
+        favorited: true,
+        createdAt: new Date(2024, 0, 1, 9, 0).getTime(),
+      }),
+    ]
+
+    const result = filterPosts(
+      mixed,
+      { keyword: '电影', range: 'week', onlyFavorited: true },
+      now,
+    )
+
+    expect(result.map((post) => post.id)).toEqual(['a'])
   })
 })

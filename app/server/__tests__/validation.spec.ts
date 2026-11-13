@@ -67,13 +67,22 @@ describe('validateImportPayload - 合法输入', () => {
       { id: 'i2', text: '导入二', createdAt: 2 },
     ]
 
-    expect(validateImportPayload({ posts })).toEqual({ ok: true, posts, skipped: 0 })
+    expect(validateImportPayload({ posts })).toEqual({
+      ok: true,
+      // 导入数据不携带点赞/收藏状态，校验层统一归零
+      posts: posts.map((post) => ({ ...post, likes: 0, liked: false, favorited: false })),
+      skipped: 0,
+    })
   })
 
   it('接受纯数组形状', () => {
     const posts = [{ id: 'i1', text: '导入一', createdAt: 1 }]
 
-    expect(validateImportPayload(posts)).toEqual({ ok: true, posts, skipped: 0 })
+    expect(validateImportPayload(posts)).toEqual({
+      ok: true,
+      posts: posts.map((post) => ({ ...post, likes: 0, liked: false, favorited: false })),
+      skipped: 0,
+    })
   })
 
   it('丢弃脏条目并计入 skipped（skipped = 原始条数 - 有效条数）', () => {
