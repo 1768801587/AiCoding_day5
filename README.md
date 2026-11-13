@@ -73,4 +73,62 @@ npm run dev      # 前端 http://localhost:5173 ，API http://localhost:8787
 
 约束：单条动态最多 500 字、最多 1000 条、请求体上限 1MB。点赞与收藏是**单用户全局状态**，由服务端保存；导出文件会带上 `likes / liked / favorited`，导入时一并恢复，不含这些字段的旧备份仍可导入（导入后为默认值）。
 
+## 备份文件（JSON）
+
+侧栏「数据管理」可以导出 / 导入 JSON 备份，用于在内存数据被清空后恢复动态，**包含点赞与收藏状态**。导出的文件名形如 `mingle-posts-20261113-1600.json`。
+
+### 文件结构
+
+```json
+{
+  "app": "mingle",
+  "version": 1,
+  "exportedAt": "2026-11-13T12:00:00.000Z",
+  "posts": [
+    {
+      "id": "seed-01",
+      "text": "早上出门发现降温了，风里已经有冬天的味道。",
+      "createdAt": 1794532320000,
+      "likes": 1,
+      "liked": true,
+      "favorited": false
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `app` / `version` | string / number | 固定为 `mingle` 与 `1`，用于识别文件来源 |
+| `exportedAt` | string | 导出时间（ISO 8601），仅作记录，导入时忽略 |
+| `posts[].id` | string | 动态唯一标识，导入时按它去重；缺失会自动生成新 id |
+| `posts[].text` | string | 正文，必填，最多 500 字（按 Unicode 码点计） |
+| `posts[].createdAt` | number | 创建时间（毫秒时间戳），缺失按 0 处理（排在列表末尾并显示「时间未知」） |
+| `posts[].likes` | number | 点赞数，单用户模型下只会是 0 或 1 |
+| `posts[].liked` | boolean | 当前是否已点赞 |
+| `posts[].favorited` | boolean | 当前是否已收藏 |
+
+### 导入规则
+
+- 兼容两种形状：上面带 `app / version / posts` 的导出结构，以及**纯数组** `[{ id, text, createdAt }]`。
+- 按 `id` 去重：已存在的动态会被**跳过且不覆盖**（正文、时间、点赞收藏都保持服务端现值），提示里显示「跳过 N 条」。
+- 点赞收藏状态随导入恢复：`likes` 以 `liked` 为准收敛（已点赞记为 1，未点赞记为 0），`favorited` 原样保留。
+- **旧备份兼容**：不含 `likes / liked / favorited` 的文件仍可导入，导入后这三项分别为 `0 / false / false`。
+- 校验限制：文件 ≤ 1MB；正文必填且 ≤ 500 字；导入后总条数 ≤ 1000 条；完全非法的条目（如缺少 `text`）会被丢弃并计入跳过数。
+- 失败时用提示条说明原因：JSON 非法 / 结构不符 / 没有可导入的动态 / 文件过大 / 写入失败。
+
+### 命令行导出与导入
+
+`GET /api/posts` 返回的数组就是导出文件中的 `posts` 内容，因此可以直接用命令行备份与恢复：
+
+```bash
+# 导出（纯数组，导入接口同样接受）
+curl -s http://localhost:8787/api/posts > posts.json
+
+# 导入：既可用上面导出的纯数组，也可用页面导出的完整备份文件
+curl -X POST http://localhost:8787/api/posts/import \
+  -H "Content-Type: application/json" \
+  --data-binary @posts.json
+```
+
 完整的分层设计、字段定义与测试说明见 [`app/README.md`](./app/README.md)。

@@ -60,7 +60,7 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | PUT | `/api/posts/:id/favorite` | 幂等设为已收藏 | 200 `Post` | 404 `NOT_FOUND` |
 | DELETE | `/api/posts/:id/favorite` | 幂等取消收藏 | 200 `Post` | 404 `NOT_FOUND` |
 
-> 点赞 / 收藏当前没有登录体系，是**单用户全局状态**（`likes` 只会是 0 或 1）。`PUT` / `DELETE` 语义幂等，重复请求不会让计数漂移。导出 JSON 会带上 `likes / liked / favorited`，导入时一并恢复（单用户模型下按 `liked` 收敛计数）；不含这三个字段的旧备份仍可导入，导入后为默认值。
+> 点赞 / 收藏当前没有登录体系，是**单用户全局状态**（`likes` 只会是 0 或 1）。`PUT` / `DELETE` 语义幂等，重复请求不会让计数漂移。导出 JSON 会带上 `likes / liked / favorited`，导入时一并恢复（单用户模型下按 `liked` 收敛计数）；不含这三个字段的旧备份仍可导入，导入后为默认值。备份文件的完整字段说明与导入规则见根目录 README 的《备份文件（JSON）》。
 
 约束：单条动态最多 500 字（按 Unicode 码点计）、最多 1000 条、请求体上限 1MB。
 
