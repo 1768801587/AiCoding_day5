@@ -1,6 +1,6 @@
 # Mingle · Vue 3 + Pinia + Hono 版
 
-这是根目录纯静态版 Mingle 的 **TDD 重写版**：前端为 Vue 3 + Pinia + TypeScript + Vite，后端为 **Hono + RESTful API + 内存存储**。动态数据不再保存在浏览器 `localStorage`，而是由服务端统一保管（字段仍为 `{ id, text, createdAt }`，`id` 与 `createdAt` 由服务端生成）。
+这是根目录纯静态版 Mingle 的 **TDD 重写版**：前端为 Vue 3 + Pinia + TypeScript + Vite，后端为 **Hono + RESTful API + 内存存储**。动态数据不再保存在浏览器 `localStorage`，而是由服务端统一保管（字段为 `{ id, text, createdAt, likes, liked, favorited }`，`id` 与 `createdAt` 由服务端生成，点赞/收藏状态同样由服务端维护）。
 
 根目录的 `index.html`、`css/`、`js/` 仍是纯前端 localStorage 版本，保持原样、互不影响。
 
@@ -41,6 +41,9 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | 草稿自动保存 | 输入 300ms 防抖写入草稿，刷新/重开后恢复；发布成功或清空输入即删除草稿 |
 | 相对时间 | 「刚刚 / x 分钟前 / x 小时前 / 昨天 HH:mm / MM-DD HH:mm」，每分钟自动刷新；未知时间显示「时间未知」 |
 | 搜索与筛选 | 关键词搜索 + 全部/今天/近 7 天/近 30 天筛选，展示「命中 / 总数」，无结果有独立空态 |
+| 点赞 | 每条动态可点赞/取消点赞，按钮显示激活态与点赞数；请求进行中禁用按钮，避免重复提交 |
+| 收藏 | 每条动态可收藏/取消收藏，激活态为暖色高亮；状态持久于服务端内存 |
+| 我的收藏筛选 | 工具栏「我的收藏」开关只展示已收藏动态，可与关键词、时间范围组合；无结果显示收藏专属空态 |
 
 ### RESTful API 契约
 
@@ -54,6 +57,12 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | POST | `/api/posts` | 新建（服务端生成 id 与时间） | 201 `Post` + `Location` | 400 `EMPTY` / `TOO_LONG`、409 `LIMIT_REACHED`、413 `TOO_LARGE`、415 `UNSUPPORTED_MEDIA_TYPE` |
 | POST | `/api/posts/import` | 批量导入，按 id 去重且幂等 | 200 `{ imported, skipped, total }` | 400 `EMPTY` / `INVALID_SHAPE`、409 `LIMIT_REACHED` |
 | DELETE | `/api/posts/:id` | 删除 | 204 | 404 `NOT_FOUND` |
+| PUT | `/api/posts/:id/like` | 幂等设为已点赞（计数 +1） | 200 `Post` | 404 `NOT_FOUND` |
+| DELETE | `/api/posts/:id/like` | 幂等取消点赞（计数不低于 0） | 200 `Post` | 404 `NOT_FOUND` |
+| PUT | `/api/posts/:id/favorite` | 幂等设为已收藏 | 200 `Post` | 404 `NOT_FOUND` |
+| DELETE | `/api/posts/:id/favorite` | 幂等取消收藏 | 200 `Post` | 404 `NOT_FOUND` |
+
+> 点赞 / 收藏当前没有登录体系，是**单用户全局状态**（`likes` 只会是 0 或 1）。`PUT` / `DELETE` 语义幂等，重复请求不会让计数漂移；导入数据中的点赞收藏字段会被服务端重置为 `0 / false`。
 
 约束：单条动态最多 500 字（按 Unicode 码点计）、最多 1000 条、请求体上限 1MB。
 
@@ -70,9 +79,9 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 开发顺序是自底向上的「红 → 绿 → 重构」，每一层都先写失败的测试再写实现：
 
 1. **服务端层**（`server/__tests__/`，node 环境）
-   - `store.spec.ts`：增删查、倒序、返回副本、同毫秒 id 不重复、幂等导入、重复 id 不覆盖。
+   - `store.spec.ts`：增删查、倒序、返回副本、同毫秒 id 不重复、幂等导入、重复 id 不覆盖、点赞收藏幂等与计数不为负。
    - `validation.spec.ts`：trim、`500 / 501` 码点边界、emoji 计数、导入两种形状、脏条目计数、结构不符。
-   - `api.spec.ts`：`app.request()` 跑全部状态码与错误体形状（`EMPTY`/`TOO_LONG`/`LIMIT_REACHED`/`TOO_LARGE`/`UNSUPPORTED_MEDIA_TYPE`/`INVALID_SHAPE`/`NOT_FOUND`）、`Location` 头、204 无 body、响应不含堆栈。
+   - `api.spec.ts`：`app.request()` 跑全部状态码与错误体形状（`EMPTY`/`TOO_LONG`/`LIMIT_REACHED`/`TOO_LARGE`/`UNSUPPORTED_MEDIA_TYPE`/`INVALID_SHAPE`/`NOT_FOUND`）、`Location` 头、204 无 body、响应不含堆栈；点赞/收藏 4 个端点的幂等与 404。
 2. **客户端接口层**（`src/utils/`）
    - `api.spec.ts`：四个方法的请求断言、500→`SERVER`、后端错误码透传、网络失败→`NETWORK`、假定时器推进 abort→`TIMEOUT`、非 JSON 响应、204 空体、基址拼接。
    - `draft.spec.ts` / `backup.spec.ts`：草稿读写降级、导出结构、导入解析与脏条目计数。
@@ -80,7 +89,8 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 3. **状态层**（`src/stores/posts.spec.ts`，mock `utils/api`）
    - `hydrate()/refresh()` 成功与失败（失败时 `posts` 引用不变、`loadError` 有值、`isLoading` 复位）；
    - `publish()`/`remove()`/`importAll()` 的判别式结果、失败不破坏列表、成功后广播；
-   - getters：`orderedPosts`、`totalCount`、`todayCount`、`charStatLabel`。
+   - `toggleLike()`/`toggleFavorite()`：成功替换单条、失败不改本地、同 id 在途去重；
+   - getters：`orderedPosts`、`totalCount`、`todayCount`、`charStatLabel`、`pendingIds`。
 4. **组合式函数**（`src/composables/*.spec.ts`）
    - `useToast` 全局单例与定时器清理、`useDraft` 防抖与 flush、`useNow`/`useDayChange` 跨天刷新。
 5. **组件层**（`src/components/*.spec.ts`）
@@ -101,8 +111,8 @@ app/
 ├── server/                    # Hono 服务端（内存存储）
 │   ├── index.ts               # 启动入口：PORT、dist 静态托管 + SPA 回退
 │   ├── app.ts                 # createApp(store)：logger / notFound / onError
-│   ├── routes.ts              # /api/health 与 /api/posts 路由
-│   ├── store.ts               # Map 存储 + 排序缓存 + id 碰撞重试
+│   ├── routes.ts              # /api/health、/api/posts 及点赞/收藏端点
+│   ├── store.ts               # Map 存储 + 排序缓存 + id 碰撞重试 + 点赞收藏状态
 │   ├── validation.ts          # 创建 / 导入请求体校验（复用前端纯函数）
 │   ├── errors.ts              # 错误码与 HTTP 状态映射
 │   ├── constants.ts           # API_PREFIX / 端口 / 上限
@@ -119,7 +129,7 @@ app/
     ├── utils/backup.ts        # 导出序列化与导入解析
     ├── utils/broadcast.ts     # BroadcastChannel 跨标签页通知
     ├── utils/download.ts      # Blob + <a download> 导出文件
-    ├── stores/posts.ts        # Pinia setup store（hydrate / refresh / publish / remove / importAll）
+    ├── stores/posts.ts        # Pinia setup store（hydrate / refresh / publish / remove / importAll / toggleLike / toggleFavorite）
     ├── composables/           # useToast / useDraft / useNow / useDayChange
     └── components/            # AppHeader / StatsPanel / PostComposer / FeedFilter /
                                # PostList / PostItem / EmptyState / SidePanel /

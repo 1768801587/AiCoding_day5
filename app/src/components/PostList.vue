@@ -13,8 +13,10 @@ const props = withDefaults(
     isFiltered?: boolean
     /** 正在切换点赞 / 收藏状态的动态 id，命中的条目禁用操作按钮 */
     pendingIds?: readonly string[]
+    /** 是否只看已收藏的动态，用于给出更贴切的空态文案 */
+    onlyFavorited?: boolean
   }>(),
-  { total: 0, isFiltered: false, pendingIds: () => [] },
+  { total: 0, isFiltered: false, pendingIds: () => [], onlyFavorited: false },
 )
 
 const emit = defineEmits<{
@@ -27,10 +29,22 @@ const countLabel = computed(() =>
   props.isFiltered ? `${props.posts.length} / ${props.total} 条` : `${props.posts.length} 条`,
 )
 
-const emptyTitle = computed(() => (props.isFiltered ? '没有匹配的动态' : '这里还很安静'))
-const emptyText = computed(() =>
-  props.isFiltered ? '试试换个关键词或时间范围' : '还没有动态，发布第一条吧～',
-)
+/** 收藏筛选无结果时给出专属引导，避免让用户以为要改关键词。 */
+const emptyTitle = computed(() => {
+  if (props.onlyFavorited) {
+    return '还没有收藏的动态'
+  }
+
+  return props.isFiltered ? '没有匹配的动态' : '这里还很安静'
+})
+
+const emptyText = computed(() => {
+  if (props.onlyFavorited) {
+    return '点击动态下方的收藏按钮，把它加入收藏'
+  }
+
+  return props.isFiltered ? '试试换个关键词或时间范围' : '还没有动态，发布第一条吧～'
+})
 
 /** 列表只做状态判断，请求本身由 store 负责。 */
 function isPostPending(id: string): boolean {

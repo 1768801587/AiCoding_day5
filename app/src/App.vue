@@ -129,6 +129,7 @@ useDayChange(() => posts.refreshNow())
           :posts="visiblePosts"
           :total="posts.totalCount"
           :is-filtered="isFiltered"
+          :only-favorited="onlyFavorited"
           :pending-ids="posts.pendingIds"
           @remove="onRemove"
           @toggle-like="onToggleLike"

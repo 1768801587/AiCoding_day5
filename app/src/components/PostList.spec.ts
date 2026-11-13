@@ -18,6 +18,8 @@ interface ListProps {
   posts: readonly Post[]
   total?: number
   isFiltered?: boolean
+  pendingIds?: readonly string[]
+  onlyFavorited?: boolean
 }
 
 function mountList(props: ListProps, slots?: Record<string, string>): ListWrapper {
@@ -154,5 +156,12 @@ describe('PostList', () => {
 
     expect(wrapper.emitted('toggle-like')).toEqual([['target']])
     expect(wrapper.emitted('toggle-favorite')).toEqual([['target']])
+  })
+
+  it('只看收藏且无结果时给出收藏专属空态', () => {
+    const wrapper = mountList({ posts: [], total: 2, isFiltered: true, onlyFavorited: true })
+
+    expect(wrapper.get('.empty__title').text()).toBe('还没有收藏的动态')
+    expect(wrapper.get('.empty__text').text()).toContain('收藏按钮')
   })
 })
