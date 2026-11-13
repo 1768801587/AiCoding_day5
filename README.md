@@ -34,3 +34,17 @@ python -m http.server 8080
 ```
 
 然后访问 http://localhost:8080/
+
+## Vue 3 + Pinia 版（TDD 重写）
+
+`app/` 目录是同一功能以 Node.js + Vue 3 + Pinia + TypeScript + Vite 重写的版本，采用 TDD（先写测试再实现）开发，数据同样保存在 `localStorage`（键名 `mingle_posts`），与上方的静态版数据互通。
+
+```bash
+cd app
+npm install
+npm run dev      # 开发预览
+npm test         # 运行测试
+npm run build    # 类型检查 + 生产构建
+```
+
+详细的分层与测试说明见 [`app/README.md`](./app/README.md)。
