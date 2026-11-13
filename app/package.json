@@ -5,7 +5,10 @@
   "type": "module",
   "description": "Mingle 的 Vue 3 + Pinia + TypeScript 实现（TDD 重写版）",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "start": "tsx server/index.ts",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -14,6 +17,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.8",
+    "hono": "^4.13.18",
     "pinia": "^2.2.2",
     "vue": "^3.4.38"
   },
@@ -23,7 +28,9 @@
     "@vitejs/plugin-vue": "^5.1.3",
     "@vitest/coverage-v8": "^1.6.0",
     "@vue/test-utils": "^2.4.6",
+    "concurrently": "^9.1.0",
     "jsdom": "^24.1.1",
+    "tsx": "^4.19.2",
     "typescript": "~5.4.5",
     "vite": "^5.4.3",
     "vitest": "^1.6.0",

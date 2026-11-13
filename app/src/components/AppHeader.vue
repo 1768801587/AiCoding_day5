@@ -11,7 +11,7 @@
       <div class="topbar__actions">
         <span class="status-pill">
           <span class="status-pill__dot" aria-hidden="true"></span>
-          本地模式
+          服务端模式
         </span>
         <span class="chip">无需登录</span>
       </div>

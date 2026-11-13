@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import DataPanel from './DataPanel.vue'
+</script>
+
 <template>
   <aside class="layout__side" aria-label="侧边信息">
     <section class="side-card profile">
@@ -7,7 +11,7 @@
         <h3 class="profile__name">Mingler</h3>
         <p class="profile__bio">在 Mingle 记录日常的普通人。</p>
         <div class="profile__tags">
-          <span class="chip chip--soft">本地存储</span>
+          <span class="chip chip--soft">服务端内存</span>
           <span class="chip chip--soft">轻社交</span>
         </div>
       </div>
@@ -61,15 +65,17 @@
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           </span>
-          数据仅保存在本地浏览器
+          数据存于服务端内存，重启后清空
         </li>
       </ul>
     </section>
 
+    <DataPanel />
+
     <section class="side-card side-card--gradient">
       <h3 class="side-card__title">关于 Mingle</h3>
       <p class="side-card__text">
-        一个纯前端、零依赖的轻量动态页面，无需后端，专注于记录与分享当下的心情。
+        前后端同仓的轻量动态应用：Vue 3 + Pinia 前端，Hono 提供 RESTful API。
       </p>
     </section>
   </aside>

@@ -33,3 +33,7 @@ out/
 .vscode/
 .codebuddy/
 *.swp
+
+# Local runtime logs
+app/stop.log
+*.log
