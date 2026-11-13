@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { MAX_LENGTH } from '../constants'
 import type { ApiResult, Post } from '../types'
-import { createPost, deletePost, fetchPosts, importPosts } from '../utils/api'
+import { createPost, deletePost, fetchPosts, importPosts, setPostFavorited, setPostLiked } from '../utils/api'
 import { postsChannel } from '../utils/broadcast'
 import { usePostsStore } from './posts'
 
@@ -359,5 +359,161 @@ describe('usePostsStore', () => {
       expect(store.todayCount).toBe(0)
       expect(store.totalCount).toBe(2)
     })
+  })
+})
+
+/* =========================================================
+   点赞 / 收藏（追加用例，上方既有断言保持不变）
+   ========================================================= */
+
+/** 已点赞的「旧动态」，用于验证取消点赞的目标状态。 */
+const likedOld: Post = { ...storedPosts[0]!, likes: 1, liked: true, favorited: false }
+/** 已收藏的「旧动态」，用于验证取消收藏的目标状态。 */
+const favoritedOld: Post = { ...storedPosts[0]!, likes: 0, liked: false, favorited: true }
+
+describe('toggleLike', () => {
+  beforeEach(() => {
+    vi.mocked(setPostLiked).mockReset()
+  })
+
+  it('点赞成功后用服务端返回的动态替换对应项，并广播变更', async () => {
+    const updated: Post = { ...storedPosts[0]!, likes: 1, liked: true, favorited: false }
+    vi.mocked(setPostLiked).mockResolvedValue({ ok: true, data: updated })
+    const store = usePostsStore()
+    await store.hydrate()
+    const untouched = store.posts.find((post) => post.id === 'new')
+
+    const result = await store.toggleLike('old')
+
+    expect(setPostLiked).toHaveBeenCalledWith('old', true)
+    expect(result).toEqual({ ok: true, post: updated })
+    expect(store.posts.find((post) => post.id === 'old')).toEqual(updated)
+    // 其它动态保持原引用，避免整表重建引发无谓重渲染
+    expect(store.posts.find((post) => post.id === 'new')).toBe(untouched)
+    expect(store.totalCount).toBe(2)
+    expect(postsChannel.notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('已点赞时再次点击发送取消点赞请求', async () => {
+    vi.mocked(fetchPosts).mockResolvedValue({ ok: true, data: [{ ...likedOld }] })
+    vi.mocked(setPostLiked).mockResolvedValue({
+      ok: true,
+      data: { ...likedOld, likes: 0, liked: false },
+    })
+    const store = usePostsStore()
+    await store.hydrate()
+
+    const result = await store.toggleLike('old')
+
+    expect(setPostLiked).toHaveBeenCalledWith('old', false)
+    expect(result).toEqual({ ok: true, post: { ...likedOld, likes: 0, liked: false } })
+    expect(store.posts[0]?.liked).toBe(false)
+    expect(store.posts[0]?.likes).toBe(0)
+  })
+
+  it('失败时不改动列表、不广播，并透传错误码', async () => {
+    vi.mocked(setPostLiked).mockResolvedValue({ ok: false, error: 'NETWORK', status: 0 })
+    const store = usePostsStore()
+    await store.hydrate()
+    const before = store.posts
+
+    expect(await store.toggleLike('old')).toEqual({ ok: false, error: 'NETWORK' })
+    expect(store.posts).toBe(before)
+    expect(store.posts.find((post) => post.id === 'old')?.liked).toBeUndefined()
+    expect(postsChannel.notify).not.toHaveBeenCalled()
+  })
+
+  it('服务端 NOT_FOUND 原样透传', async () => {
+    vi.mocked(setPostLiked).mockResolvedValue({ ok: false, error: 'NOT_FOUND', status: 404 })
+    const store = usePostsStore()
+    await store.hydrate()
+    const before = store.posts
+
+    expect(await store.toggleLike('old')).toEqual({ ok: false, error: 'NOT_FOUND' })
+    expect(store.posts).toBe(before)
+  })
+
+  it('未知 id 不发请求，直接返回 NOT_FOUND', async () => {
+    const store = usePostsStore()
+    await store.hydrate()
+
+    expect(await store.toggleLike('missing')).toEqual({ ok: false, error: 'NOT_FOUND' })
+    expect(setPostLiked).not.toHaveBeenCalled()
+  })
+
+  it('同一 id 请求进行中时重复点击只发一次请求，并暴露 pending 状态', async () => {
+    const request = deferred<ApiResult<Post>>()
+    vi.mocked(setPostLiked).mockReturnValue(request.promise)
+    const store = usePostsStore()
+    await store.hydrate()
+    const updated: Post = { ...storedPosts[0]!, likes: 1, liked: true, favorited: false }
+
+    const first = store.toggleLike('old')
+    expect(store.isPending('old')).toBe(true)
+    expect(store.pendingIds).toEqual(['old'])
+
+    // 请求未结算时的第二次点击直接失败，且不再发起请求
+    expect(await store.toggleLike('old')).toEqual({ ok: false, error: 'SERVER' })
+    expect(setPostLiked).toHaveBeenCalledTimes(1)
+
+    request.resolve({ ok: true, data: updated })
+    await expect(first).resolves.toEqual({ ok: true, post: updated })
+
+    expect(store.isPending('old')).toBe(false)
+    expect(store.pendingIds).toEqual([])
+  })
+})
+
+describe('toggleFavorite', () => {
+  beforeEach(() => {
+    vi.mocked(setPostFavorited).mockReset()
+  })
+
+  it('收藏成功后用服务端返回的动态替换对应项，并广播变更', async () => {
+    const updated: Post = { ...storedPosts[0]!, likes: 0, liked: false, favorited: true }
+    vi.mocked(setPostFavorited).mockResolvedValue({ ok: true, data: updated })
+    const store = usePostsStore()
+    await store.hydrate()
+
+    const result = await store.toggleFavorite('old')
+
+    expect(setPostFavorited).toHaveBeenCalledWith('old', true)
+    expect(result).toEqual({ ok: true, post: updated })
+    expect(store.posts.find((post) => post.id === 'old')?.favorited).toBe(true)
+    expect(postsChannel.notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('已收藏时再次点击发送取消收藏请求', async () => {
+    vi.mocked(fetchPosts).mockResolvedValue({ ok: true, data: [{ ...favoritedOld }] })
+    vi.mocked(setPostFavorited).mockResolvedValue({
+      ok: true,
+      data: { ...favoritedOld, favorited: false },
+    })
+    const store = usePostsStore()
+    await store.hydrate()
+
+    await store.toggleFavorite('old')
+
+    expect(setPostFavorited).toHaveBeenCalledWith('old', false)
+    expect(store.posts[0]?.favorited).toBe(false)
+  })
+
+  it('失败时不改动列表、不广播，并透传错误码', async () => {
+    vi.mocked(setPostFavorited).mockResolvedValue({ ok: false, error: 'NOT_FOUND', status: 404 })
+    const store = usePostsStore()
+    await store.hydrate()
+    const before = store.posts
+
+    expect(await store.toggleFavorite('old')).toEqual({ ok: false, error: 'NOT_FOUND' })
+    expect(store.posts).toBe(before)
+    expect(postsChannel.notify).not.toHaveBeenCalled()
+  })
+
+  it('未知 id 不发请求，直接返回 NOT_FOUND', async () => {
+    const store = usePostsStore()
+    await store.hydrate()
+
+    expect(await store.toggleFavorite('missing')).toEqual({ ok: false, error: 'NOT_FOUND' })
+    expect(setPostFavorited).not.toHaveBeenCalled()
   })
 })

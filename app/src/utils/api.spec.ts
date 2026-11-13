@@ -235,3 +235,144 @@ describe('createPostsApi', () => {
     expect(firstCall(mock).url).toBe('/api/posts')
   })
 })
+
+/* =========================================================
+   点赞与收藏接口（追加用例，上方既有断言保持不变）
+   ========================================================= */
+
+/** 点赞/收藏用例统一用默认实例，基址固定为 /api。 */
+const socialApi = createPostsApi()
+
+describe('setPostLiked', () => {
+  it('点赞成功时返回服务端最新动态，并发出 PUT /api/posts/:id/like', async () => {
+    const liked: Post = { ...post, likes: 1, liked: true }
+    const mock = stubFetch(async () => jsonResponse(liked))
+
+    await expect(socialApi.setPostLiked('a1', true)).resolves.toEqual({ ok: true, data: liked })
+
+    const { url, init } = firstCall(mock)
+    expect(url).toBe('/api/posts/a1/like')
+    expect(init?.method).toBe('PUT')
+  })
+
+  it('取消点赞时发出 DELETE，并返回取消后的动态', async () => {
+    const mock = stubFetch(async () => jsonResponse(post))
+
+    await expect(socialApi.setPostLiked('a1', false)).resolves.toEqual({ ok: true, data: post })
+
+    const { url, init } = firstCall(mock)
+    expect(url).toBe('/api/posts/a1/like')
+    expect(init?.method).toBe('DELETE')
+  })
+
+  it('对 id 做 encodeURIComponent', async () => {
+    const mock = stubFetch(async () => jsonResponse(post))
+
+    await socialApi.setPostLiked('a/b c', true)
+
+    expect(firstCall(mock).url).toBe('/api/posts/a%2Fb%20c/like')
+  })
+
+  it('404 映射为 NOT_FOUND 并带回状态码', async () => {
+    stubFetch(async () => apiErrorResponse('NOT_FOUND', 404))
+
+    await expect(socialApi.setPostLiked('gone', true)).resolves.toEqual({
+      ok: false,
+      error: 'NOT_FOUND',
+      status: 404,
+    })
+  })
+
+  it('2xx 但响应体不是合法动态时返回 SERVER', async () => {
+    stubFetch(async () => jsonResponse({ liked: true }))
+
+    await expect(socialApi.setPostLiked('a1', true)).resolves.toEqual({
+      ok: false,
+      error: 'SERVER',
+      status: 200,
+    })
+  })
+
+  it('fetch 失败时返回 NETWORK，status 为 0', async () => {
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+
+    await expect(socialApi.setPostLiked('a1', true)).resolves.toEqual({
+      ok: false,
+      error: 'NETWORK',
+      status: 0,
+    })
+  })
+})
+
+describe('setPostFavorited', () => {
+  it('收藏成功时返回服务端最新动态，并发出 PUT /api/posts/:id/favorite', async () => {
+    const favorited: Post = { ...other, favorited: true }
+    const mock = stubFetch(async () => jsonResponse(favorited))
+
+    await expect(socialApi.setPostFavorited('b2', true)).resolves.toEqual({
+      ok: true,
+      data: favorited,
+    })
+
+    const { url, init } = firstCall(mock)
+    expect(url).toBe('/api/posts/b2/favorite')
+    expect(init?.method).toBe('PUT')
+  })
+
+  it('取消收藏时发出 DELETE，并返回取消后的动态', async () => {
+    const mock = stubFetch(async () => jsonResponse(other))
+
+    await expect(socialApi.setPostFavorited('b2', false)).resolves.toEqual({
+      ok: true,
+      data: other,
+    })
+
+    const { url, init } = firstCall(mock)
+    expect(url).toBe('/api/posts/b2/favorite')
+    expect(init?.method).toBe('DELETE')
+  })
+
+  it('对 id 做 encodeURIComponent', async () => {
+    const mock = stubFetch(async () => jsonResponse(other))
+
+    await socialApi.setPostFavorited('a/b c', false)
+
+    expect(firstCall(mock).url).toBe('/api/posts/a%2Fb%20c/favorite')
+  })
+
+  it('404 映射为 NOT_FOUND 并带回状态码', async () => {
+    stubFetch(async () => apiErrorResponse('NOT_FOUND', 404))
+
+    await expect(socialApi.setPostFavorited('gone', true)).resolves.toEqual({
+      ok: false,
+      error: 'NOT_FOUND',
+      status: 404,
+    })
+  })
+
+  it('2xx 但响应体不是合法动态时返回 SERVER', async () => {
+    stubFetch(async () => jsonResponse([other]))
+
+    await expect(socialApi.setPostFavorited('b2', true)).resolves.toEqual({
+      ok: false,
+      error: 'SERVER',
+      status: 200,
+    })
+  })
+})
+
+describe('点赞 / 收藏的具名导出', () => {
+  it('文件底部导出可直接使用默认实例的四个方法', async () => {
+    const mock = stubFetch(async () => jsonResponse({ ...post, likes: 1, liked: true }))
+
+    const module = await import('./api')
+
+    await expect(module.setPostLiked('a1', true)).resolves.toMatchObject({ ok: true })
+    expect(firstCall(mock).url).toBe('/api/posts/a1/like')
+
+    await expect(module.setPostFavorited('a1', true)).resolves.toMatchObject({ ok: true })
+    expect(mock.mock.calls[1]?.[0]).toBe('/api/posts/a1/favorite')
+  })
+})

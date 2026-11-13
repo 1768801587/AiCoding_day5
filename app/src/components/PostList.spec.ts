@@ -121,4 +121,38 @@ describe('PostList', () => {
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.find('b').exists()).toBe(false)
   })
+
+  /* ---------------------------------------------------------
+     点赞 / 收藏事件透传（追加用例，上方既有断言保持不变）
+     --------------------------------------------------------- */
+
+  /** 点赞 / 收藏用例需要额外传入 pendingIds，单独封装挂载。 */
+  function mountWithPending(
+    posts: readonly Post[],
+    pendingIds: readonly string[] = [],
+  ): ListWrapper {
+    const wrapper = mount(PostList, { props: { posts, pendingIds } })
+    mounted.push(wrapper)
+    return wrapper
+  }
+
+  it('pendingIds 命中的条目禁用点赞与收藏按钮', () => {
+    const wrapper = mountWithPending([makePost({ id: 'a' }), makePost({ id: 'b' })], ['a'])
+    const items = wrapper.findAll('.post')
+
+    expect(items[0]?.get('.post__action--like').attributes('disabled')).toBeDefined()
+    expect(items[0]?.get('.post__action--favorite').attributes('disabled')).toBeDefined()
+    expect(items[1]?.get('.post__action--like').attributes('disabled')).toBeUndefined()
+    expect(items[1]?.get('.post__action--favorite').attributes('disabled')).toBeUndefined()
+  })
+
+  it('子项的 toggle-like 与 toggle-favorite 事件向父级转发 id', async () => {
+    const wrapper = mountWithPending([makePost({ id: 'target' })])
+
+    await wrapper.get('.post__action--like').trigger('click')
+    await wrapper.get('.post__action--favorite').trigger('click')
+
+    expect(wrapper.emitted('toggle-like')).toEqual([['target']])
+    expect(wrapper.emitted('toggle-favorite')).toEqual([['target']])
+  })
 })

@@ -1,16 +1,30 @@
-import { computed, shallowRef } from 'vue'
+import { computed, readonly, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { MAX_LENGTH } from '../constants'
 import type {
   ApiErrorCode,
+  ApiResult,
   DeleteResult,
   ImportOutcome,
   Post,
   PublishResult,
 } from '../types'
-import { createPost, deletePost, fetchPosts, importPosts } from '../utils/api'
+import {
+  createPost,
+  deletePost,
+  fetchPosts,
+  importPosts,
+  setPostFavorited,
+  setPostLiked,
+} from '../utils/api'
 import { postsChannel } from '../utils/broadcast'
 import { computeStats, countChars, formatCharCount, sortPostsDesc } from '../utils/post'
+
+/** 点赞 / 收藏动作的结果：失败时不触发 UI，由展示层决定文案。 */
+export type ToggleResult = { ok: true; post: Post } | { ok: false; error: ApiErrorCode }
+
+/** 可切换的社交状态字段，点赞与收藏共用一套流程。 */
+type ToggleField = 'liked' | 'favorited'
 
 /**
  * 动态数据源。所有读写、校验与统计都在这里完成，组件只负责展示。
@@ -27,6 +41,11 @@ export const usePostsStore = defineStore('posts', () => {
    * 单独抽成响应式状态，才能让「今日发布」在跨天后被外部刷新触发重算。
    */
   const now = shallowRef(new Date())
+  /**
+   * 点赞 / 收藏请求进行中的动态 id。
+   * 用于按钮禁用与请求去重：同一条动态同一时刻只允许一个在途请求。
+   */
+  const pendingIds = shallowRef<readonly string[]>([])
 
   const orderedPosts = computed(() => sortPostsDesc(posts.value))
   const stats = computed(() => computeStats(posts.value, now.value))
@@ -131,6 +150,65 @@ export const usePostsStore = defineStore('posts', () => {
     return { ok: true, imported: result.data.imported, skipped: result.data.skipped }
   }
 
+  /** 判断某条动态是否正在切换点赞 / 收藏状态。 */
+  function isPending(id: string): boolean {
+    return pendingIds.value.includes(id)
+  }
+
+  /**
+   * 点赞与收藏共用的状态切换：
+   * 1. 本地列表没有该动态时视为不存在，直接返回 NOT_FOUND，不发请求；
+   * 2. 同 id 已有在途请求时直接返回 SERVER，避免重复点击反复翻转状态；
+   * 3. 目标状态由当前值决定（已是 `true` 则取消，否则开启）；
+   * 4. 只有请求成功才用服务端返回的动态替换对应项，失败保留原列表。
+   */
+  async function toggle(
+    id: string,
+    field: ToggleField,
+    request: (id: string, active: boolean) => Promise<ApiResult<Post>>,
+  ): Promise<ToggleResult> {
+    const target = posts.value.find((post) => post.id === id)
+
+    if (!target) {
+      return { ok: false, error: 'NOT_FOUND' }
+    }
+
+    if (isPending(id)) {
+      return { ok: false, error: 'SERVER' }
+    }
+
+    const active = target[field] !== true
+    pendingIds.value = [...pendingIds.value, id]
+
+    try {
+      const result = await request(id, active)
+
+      if (!result.ok) {
+        return { ok: false, error: result.error }
+      }
+
+      const updated = result.data
+
+      // 单条替换，其余动态保持原引用，避免整表重建
+      posts.value = posts.value.map((post) => (post.id === id ? updated : post))
+      postsChannel.notify()
+
+      return { ok: true, post: updated }
+    } finally {
+      pendingIds.value = pendingIds.value.filter((pending) => pending !== id)
+    }
+  }
+
+  /** 切换点赞状态；点赞数为服务端权威值，本地不做乐观更新。 */
+  function toggleLike(id: string): Promise<ToggleResult> {
+    return toggle(id, 'liked', setPostLiked)
+  }
+
+  /** 切换收藏状态；同样只以服务端返回结果为准。 */
+  function toggleFavorite(id: string): Promise<ToggleResult> {
+    return toggle(id, 'favorited', setPostFavorited)
+  }
+
   return {
     posts,
     now,
@@ -141,11 +219,15 @@ export const usePostsStore = defineStore('posts', () => {
     totalCount,
     todayCount,
     charStatLabel,
+    pendingIds: readonly(pendingIds),
     refreshNow,
     hydrate,
     refresh,
     publish,
     remove,
     importAll,
+    isPending,
+    toggleLike,
+    toggleFavorite,
   }
 })
