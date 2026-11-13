@@ -51,4 +51,41 @@ describe('FeedFilter', () => {
 
     expect(wrapper.find('.feed__search-clear').exists()).toBe(false)
   })
+
+  /* ---------------------------------------------------------
+     「我的收藏」开关（追加用例，上方既有断言保持不变）
+     --------------------------------------------------------- */
+
+  function mountFavToggle(favorited = false): ReturnType<typeof mount> {
+    return mount(FeedFilter, { props: { keyword: '', range: 'all', favorited } })
+  }
+
+  it('渲染「我的收藏」开关，未开启时 aria-pressed 为 false 且不带激活态', () => {
+    const button = mountFavToggle().get('.feed__fav-toggle')
+
+    expect(button.text()).toBe('我的收藏')
+    expect(button.attributes('type')).toBe('button')
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.classes()).not.toContain('is-active')
+  })
+
+  it('点击开关向上同步为 true', async () => {
+    const wrapper = mountFavToggle()
+
+    await wrapper.get('.feed__fav-toggle').trigger('click')
+
+    expect(wrapper.emitted('update:favorited')).toEqual([[true]])
+  })
+
+  it('已开启时带激活态，再次点击向上同步为 false', async () => {
+    const wrapper = mountFavToggle(true)
+    const button = wrapper.get('.feed__fav-toggle')
+
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.classes()).toContain('is-active')
+
+    await button.trigger('click')
+
+    expect(wrapper.emitted('update:favorited')).toEqual([[false]])
+  })
 })

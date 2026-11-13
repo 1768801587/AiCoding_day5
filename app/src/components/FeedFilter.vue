@@ -2,11 +2,20 @@
 import { computed } from 'vue'
 import type { FilterRange } from '../types'
 
-const props = defineProps<{ keyword: string; range: FilterRange }>()
+const props = withDefaults(
+  defineProps<{
+    keyword: string
+    range: FilterRange
+    /** 是否只看已收藏的动态；缺省等价于 false */
+    favorited?: boolean
+  }>(),
+  { favorited: false },
+)
 
 const emit = defineEmits<{
   'update:keyword': [value: string]
   'update:range': [value: FilterRange]
+  'update:favorited': [value: boolean]
 }>()
 
 const RANGE_OPTIONS: { value: FilterRange; label: string }[] = [
@@ -28,6 +37,10 @@ function onRangeChange(event: Event): void {
 
 function clearKeyword(): void {
   emit('update:keyword', '')
+}
+
+function toggleFavorited(): void {
+  emit('update:favorited', !props.favorited)
 }
 </script>
 
@@ -58,5 +71,15 @@ function clearKeyword(): void {
         {{ option.label }}
       </option>
     </select>
+
+    <button
+      type="button"
+      class="feed__fav-toggle"
+      :class="{ 'is-active': favorited }"
+      :aria-pressed="favorited"
+      @click="toggleFavorited"
+    >
+      我的收藏
+    </button>
   </div>
 </template>

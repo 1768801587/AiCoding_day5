@@ -32,6 +32,8 @@ export const TOAST_MESSAGES = {
   deleteSuccess: '已删除该动态',
   deleteNotFound: '这条动态已经不存在了',
   deleteFailed: '删除失败，请检查网络后重试',
+  likeFailed: '点赞失败，请稍后重试',
+  favoriteFailed: '收藏失败，请稍后重试',
   exportSuccess: '已导出 JSON 文件',
   exportFailed: '导出失败，请重试',
   importSuccess: '导入成功',

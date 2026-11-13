@@ -20,12 +20,15 @@ const toast = useToast()
 
 const keyword = shallowRef('')
 const range = shallowRef<FilterRange>('all')
+const onlyFavorited = shallowRef(false)
 
-const isFiltered = computed(() => keyword.value.trim() !== '' || range.value !== 'all')
+const isFiltered = computed(
+  () => keyword.value.trim() !== '' || range.value !== 'all' || onlyFavorited.value,
+)
 const visiblePosts = computed(() =>
   filterPosts(
     posts.orderedPosts,
-    { keyword: keyword.value, range: range.value },
+    { keyword: keyword.value, range: range.value, onlyFavorited: onlyFavorited.value },
     posts.now.getTime(),
   ),
 )
@@ -42,6 +45,23 @@ async function onRemove(id: string): Promise<void> {
     result.error === 'NOT_FOUND' ? TOAST_MESSAGES.deleteNotFound : TOAST_MESSAGES.deleteFailed,
     true,
   )
+}
+
+/** 点赞 / 收藏失败时只提示错误，成功状态由列表项自身的激活态反馈。 */
+async function onToggleLike(id: string): Promise<void> {
+  const result = await posts.toggleLike(id)
+
+  if (!result.ok) {
+    toast.show(TOAST_MESSAGES.likeFailed, true)
+  }
+}
+
+async function onToggleFavorite(id: string): Promise<void> {
+  const result = await posts.toggleFavorite(id)
+
+  if (!result.ok) {
+    toast.show(TOAST_MESSAGES.favoriteFailed, true)
+  }
 }
 
 // 其他标签页发布/删除后重新拉取，避免列表不一致
@@ -109,10 +129,17 @@ useDayChange(() => posts.refreshNow())
           :posts="visiblePosts"
           :total="posts.totalCount"
           :is-filtered="isFiltered"
+          :pending-ids="posts.pendingIds"
           @remove="onRemove"
+          @toggle-like="onToggleLike"
+          @toggle-favorite="onToggleFavorite"
         >
           <template #filter>
-            <FeedFilter v-model:keyword="keyword" v-model:range="range" />
+            <FeedFilter
+              v-model:keyword="keyword"
+              v-model:range="range"
+              v-model:favorited="onlyFavorited"
+            />
           </template>
         </PostList>
       </div>

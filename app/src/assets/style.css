@@ -725,6 +725,34 @@ a {
   border-color: rgba(91, 124, 250, 0.45);
 }
 
+/* 「我的收藏」开关：与时间范围下拉同尺寸的圆角药丸 */
+.feed__fav-toggle {
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.feed__fav-toggle:hover {
+  color: var(--color-primary-3);
+  background: var(--color-surface);
+  border-color: rgba(91, 124, 250, 0.45);
+}
+
+.feed__fav-toggle.is-active {
+  color: #fff;
+  font-weight: 600;
+  background: var(--gradient-primary);
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(91, 124, 250, 0.26);
+}
+
 .feed__count {
   font-size: 13px;
   color: var(--color-text-faint);
@@ -904,6 +932,94 @@ a {
   .post__delete {
     opacity: 1;
   }
+}
+
+/* 点赞 / 收藏操作区：药丸形按钮，激活态用主色与暖色区分 */
+.post__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-sm);
+}
+
+.post__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background 0.2s var(--ease),
+    border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+
+.post__action-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  opacity: 0.72;
+  transition: opacity 0.2s var(--ease);
+}
+
+.post__action:hover {
+  color: var(--color-primary-3);
+  background: var(--color-surface-soft);
+  border-color: rgba(91, 124, 250, 0.35);
+}
+
+.post__action:hover .post__action-icon {
+  opacity: 1;
+}
+
+.post__action-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 已点赞：主色渐变实心按钮 */
+.post__action--like.is-active {
+  color: #fff;
+  font-weight: 600;
+  background: var(--gradient-primary);
+  border-color: transparent;
+  box-shadow: 0 6px 14px rgba(91, 124, 250, 0.24);
+}
+
+.post__action--like.is-active .post__action-icon {
+  opacity: 1;
+}
+
+/* 已收藏：暖色底 + 暖色文字与边框 */
+.post__action--favorite.is-active {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.post__action--favorite.is-active:hover {
+  color: var(--color-warning);
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+/* 请求进行中：降低不透明度、禁止点击，且不再响应 hover */
+.post__action:disabled,
+.post__action:disabled:hover {
+  color: var(--color-text-muted);
+  background: transparent;
+  border-color: var(--color-border-strong);
+  box-shadow: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.post__action:disabled .post__action-icon {
+  opacity: 0.5;
 }
 
 /* 空状态 */

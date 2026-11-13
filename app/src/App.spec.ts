@@ -8,7 +8,7 @@ import { resetToast } from './composables/useToast'
 import { TOAST_MESSAGES } from './constants'
 import { usePostsStore } from './stores/posts'
 import type { Post } from './types'
-import { createPost, deletePost, fetchPosts, importPosts } from './utils/api'
+import { createPost, deletePost, fetchPosts, importPosts, setPostFavorited, setPostLiked } from './utils/api'
 
 // 接口层整体替换为内存假服务端，用例不触碰真实网络
 vi.mock('./utils/api')
@@ -257,5 +257,128 @@ describe('App', () => {
     await nextTick()
 
     expect(statValues(wrapper)).toEqual(['1', '0', '4'])
+  })
+
+  /* ---------------------------------------------------------
+     点赞 / 收藏与「我的收藏」筛选（追加用例，上方既有断言保持不变）
+     --------------------------------------------------------- */
+
+  /** 为假服务端补上点赞 / 收藏实现，状态一律以 fakePosts 为唯一数据源。 */
+  function installSocialApi(): void {
+    vi.mocked(setPostLiked).mockImplementation(async (id, liked) => {
+      const target = fakePosts.find((post) => post.id === id)
+
+      if (!target) {
+        return { ok: false, error: 'NOT_FOUND', status: 404 }
+      }
+
+      const updated: Post = { ...target, liked, likes: liked ? (target.likes ?? 0) + 1 : 0 }
+      fakePosts = fakePosts.map((post) => (post.id === id ? updated : post))
+
+      return { ok: true, data: updated }
+    })
+
+    vi.mocked(setPostFavorited).mockImplementation(async (id, favorited) => {
+      const target = fakePosts.find((post) => post.id === id)
+
+      if (!target) {
+        return { ok: false, error: 'NOT_FOUND', status: 404 }
+      }
+
+      const updated: Post = { ...target, favorited }
+      fakePosts = fakePosts.map((post) => (post.id === id ? updated : post))
+
+      return { ok: true, data: updated }
+    })
+  }
+
+  it('点赞成功后按钮进入激活态并显示最新计数', async () => {
+    resetFakeServer([
+      { id: 'p1', text: '一条动态', createdAt: Date.now(), likes: 0, liked: false },
+    ])
+    await usePostsStore().hydrate()
+    installSocialApi()
+    const wrapper = mountApp()
+
+    expect(wrapper.get('.post__action--like').text()).toBe('0')
+
+    await wrapper.get('.post__action--like').trigger('click')
+    await flushPromises()
+
+    const like = wrapper.get('.post__action--like')
+    expect(setPostLiked).toHaveBeenCalledWith('p1', true)
+    expect(like.text()).toBe('1')
+    expect(like.attributes('aria-pressed')).toBe('true')
+    expect(like.classes()).toContain('is-active')
+  })
+
+  it('点赞失败时弹出失败提示，计数不变', async () => {
+    resetFakeServer([
+      { id: 'p1', text: '一条动态', createdAt: Date.now(), likes: 0, liked: false },
+    ])
+    await usePostsStore().hydrate()
+    vi.mocked(setPostLiked).mockResolvedValue({ ok: false, error: 'NETWORK', status: 0 })
+    const wrapper = mountApp()
+
+    await wrapper.get('.post__action--like').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.toast').text()).toBe(TOAST_MESSAGES.likeFailed)
+    expect(wrapper.get('.toast').classes()).toContain('is-visible')
+    expect(wrapper.get('.toast').classes()).toContain('is-error')
+    expect(wrapper.get('.post__action--like').text()).toBe('0')
+    expect(wrapper.get('.post__action--like').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('收藏失败时弹出失败提示', async () => {
+    resetFakeServer([{ id: 'p1', text: '一条动态', createdAt: Date.now() }])
+    await usePostsStore().hydrate()
+    vi.mocked(setPostFavorited).mockResolvedValue({ ok: false, error: 'SERVER', status: 500 })
+    const wrapper = mountApp()
+
+    await wrapper.get('.post__action--favorite').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.toast').text()).toBe(TOAST_MESSAGES.favoriteFailed)
+    expect(wrapper.get('.toast').classes()).toContain('is-error')
+    expect(wrapper.get('.post__action--favorite').text()).toBe('收藏')
+  })
+
+  it('开启「我的收藏」后只显示已收藏的动态', async () => {
+    resetFakeServer([
+      { id: 'fav', text: '收藏的动态', createdAt: Date.now(), favorited: true },
+      { id: 'plain', text: '普通动态', createdAt: Date.now() + 10 },
+    ])
+    await usePostsStore().hydrate()
+    const wrapper = mountApp()
+
+    expect(postTexts(wrapper)).toEqual(['普通动态', '收藏的动态'])
+
+    await wrapper.get('.feed__fav-toggle').trigger('click')
+
+    expect(postTexts(wrapper)).toEqual(['收藏的动态'])
+    expect(wrapper.get('.feed__count').text()).toBe('1 / 2 条')
+    expect(wrapper.get('.feed__fav-toggle').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('收藏成功后开启「我的收藏」能筛出这条动态', async () => {
+    resetFakeServer([
+      { id: 'fav', text: '收藏的动态', createdAt: Date.now() + 10 },
+      { id: 'plain', text: '普通动态', createdAt: Date.now() },
+    ])
+    await usePostsStore().hydrate()
+    installSocialApi()
+    const wrapper = mountApp()
+
+    // 列表按时间倒序，「收藏的动态」在最前
+    await wrapper.get('.post__action--favorite').trigger('click')
+    await flushPromises()
+
+    expect(setPostFavorited).toHaveBeenCalledWith('fav', true)
+    expect(wrapper.get('.post__action--favorite').text()).toBe('已收藏')
+
+    await wrapper.get('.feed__fav-toggle').trigger('click')
+
+    expect(postTexts(wrapper)).toEqual(['收藏的动态'])
   })
 })

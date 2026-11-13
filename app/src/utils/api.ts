@@ -13,6 +13,10 @@ export interface PostsApi {
   createPost(text: string): Promise<ApiResult<Post>>
   deletePost(id: string): Promise<ApiResult<null>>
   importPosts(posts: readonly Post[]): Promise<ApiResult<ImportSummary>>
+  /** 设置点赞状态：`liked` 为 true 用 PUT，false 用 DELETE，成功返回最新动态。 */
+  setPostLiked(id: string, liked: boolean): Promise<ApiResult<Post>>
+  /** 设置收藏状态：`favorited` 为 true 用 PUT，false 用 DELETE，成功返回最新动态。 */
+  setPostFavorited(id: string, favorited: boolean): Promise<ApiResult<Post>>
 }
 
 /** 与 Vite 开发代理、服务端路由保持一致的前缀。 */
@@ -193,6 +197,22 @@ export function createPostsApi(options: ApiClientOptions = {}): PostsApi {
   const baseUrl = options.baseUrl ?? resolveBaseUrl()
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
+  /**
+   * 点赞与收藏共用同一套请求逻辑：目标状态为 true 时用 PUT，false 时用 DELETE。
+   * 两者都是幂等的状态设置接口，成功后返回服务端最新的完整动态。
+   */
+  const setPostState = (
+    id: string,
+    path: '/like' | '/favorite',
+    active: boolean,
+  ): Promise<ApiResult<Post>> =>
+    request(
+      joinUrl(baseUrl, `/posts/${encodeURIComponent(id)}${path}`),
+      { method: active ? 'PUT' : 'DELETE' },
+      timeoutMs,
+      parsePost,
+    )
+
   return {
     fetchPosts: () =>
       request(joinUrl(baseUrl, '/posts'), { method: 'GET' }, timeoutMs, parsePostList),
@@ -229,6 +249,10 @@ export function createPostsApi(options: ApiClientOptions = {}): PostsApi {
         timeoutMs,
         parseImportSummary,
       ),
+
+    setPostLiked: (id, liked) => setPostState(id, '/like', liked),
+
+    setPostFavorited: (id, favorited) => setPostState(id, '/favorite', favorited),
   }
 }
 
@@ -239,3 +263,5 @@ export const fetchPosts: PostsApi['fetchPosts'] = defaultApi.fetchPosts
 export const createPost: PostsApi['createPost'] = defaultApi.createPost
 export const deletePost: PostsApi['deletePost'] = defaultApi.deletePost
 export const importPosts: PostsApi['importPosts'] = defaultApi.importPosts
+export const setPostLiked: PostsApi['setPostLiked'] = defaultApi.setPostLiked
+export const setPostFavorited: PostsApi['setPostFavorited'] = defaultApi.setPostFavorited
