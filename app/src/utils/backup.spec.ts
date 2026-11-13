@@ -25,6 +25,14 @@ describe('serializePosts', () => {
 
     expect(result).toEqual({ ok: true, posts: sample, skipped: 0 })
   })
+
+  it('导出的 JSON 保留点赞与收藏状态，便于再次导入后恢复', () => {
+    const text = serializePosts([
+      { id: 'a', text: '已点赞已收藏', createdAt: 1, likes: 1, liked: true, favorited: true },
+    ])
+
+    expect(JSON.parse(text).posts[0]).toMatchObject({ likes: 1, liked: true, favorited: true })
+  })
 })
 
 describe('parseImport', () => {

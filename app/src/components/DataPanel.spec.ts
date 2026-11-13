@@ -103,6 +103,25 @@ describe('DataPanel', () => {
     expect(useToast().isError.value).toBe(false)
   })
 
+  it('导出的 JSON 包含点赞与收藏状态', async () => {
+    resetFakeServer([
+      { id: 'liked', text: '已点赞已收藏', createdAt: 1, likes: 1, liked: true, favorited: true },
+    ])
+    const store = usePostsStore()
+    await store.hydrate()
+
+    const wrapper = mountPanel()
+    await wrapper.get('.data-panel__button').trigger('click')
+    await flushPromises()
+
+    const [, content] = vi.mocked(downloadJson).mock.calls[0] ?? []
+    expect(JSON.parse(String(content)).posts[0]).toMatchObject({
+      likes: 1,
+      liked: true,
+      favorited: true,
+    })
+  })
+
   it('导出失败时给出错误提示', async () => {
     vi.mocked(downloadJson).mockReturnValueOnce(false)
     const wrapper = mountPanel()
@@ -185,5 +204,26 @@ describe('DataPanel', () => {
     expect(usePostsStore().posts).toHaveLength(1)
     expect(useToast().message.value).toBe(TOAST_MESSAGES.importSaveFailed)
     expect(useToast().isError.value).toBe(true)
+  })
+
+  it('导入备份后恢复点赞与收藏状态', async () => {
+    const wrapper = mountPanel()
+
+    await selectFile(
+      wrapper,
+      jsonFile([
+        {
+          id: 'restored',
+          text: '带状态的动态',
+          createdAt: 1730000000000,
+          likes: 1,
+          liked: true,
+          favorited: true,
+        },
+      ]),
+    )
+
+    const restored = usePostsStore().posts.find((post) => post.id === 'restored')
+    expect(restored).toMatchObject({ likes: 1, liked: true, favorited: true })
   })
 })

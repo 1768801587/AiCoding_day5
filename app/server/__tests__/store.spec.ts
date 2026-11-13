@@ -219,22 +219,49 @@ describe('createPostStore - importMany', () => {
     expect(store.list().map((post) => post.text)).toEqual(['新', '中', '旧'])
   })
 
-  it('丢弃入参里的点赞/收藏字段，统一写入默认状态', () => {
+  it('导入时保留点赞/收藏状态，便于从备份恢复', () => {
     const store = createPostStore()
 
     store.importMany([
-      makePost({ id: 'f1', createdAt: 1, likes: 99, liked: true, favorited: true }),
-      makePost({ id: 'f2', createdAt: 2, likes: -5, liked: false, favorited: false }),
+      makePost({ id: 'f1', createdAt: 1, likes: 1, liked: true, favorited: true }),
+      makePost({ id: 'f2', createdAt: 2, likes: 99, liked: true, favorited: false }),
+      makePost({ id: 'f3', createdAt: 3, likes: 5, liked: false, favorited: true }),
+      // 旧备份没有这三个字段，导入后应落到默认状态
+      makePost({ id: 'f4', createdAt: 4 }),
     ])
 
-    const imported = store.get('f1')
-    expect(imported?.likes).toBe(0)
-    expect(imported?.liked).toBe(false)
-    expect(imported?.favorited).toBe(false)
+    const restored = store.get('f1')
+    expect(restored?.likes).toBe(1)
+    expect(restored?.liked).toBe(true)
+    expect(restored?.favorited).toBe(true)
 
-    expect(store.get('f2')?.likes).toBe(0)
-    expect(store.get('f2')?.liked).toBe(false)
-    expect(store.get('f2')?.favorited).toBe(false)
+    // 单用户模型下计数只会是 0/1，越界值按 liked 收敛
+    expect(store.get('f2')?.likes).toBe(1)
+    expect(store.get('f2')?.liked).toBe(true)
+
+    // 未点赞时计数归零，避免出现「有计数但未点赞」的矛盾状态
+    expect(store.get('f3')?.likes).toBe(0)
+    expect(store.get('f3')?.liked).toBe(false)
+    expect(store.get('f3')?.favorited).toBe(true)
+
+    expect(store.get('f4')?.likes).toBe(0)
+    expect(store.get('f4')?.liked).toBe(false)
+    expect(store.get('f4')?.favorited).toBe(false)
+  })
+
+  it('导入后 list 能读回完整的点赞收藏状态（导出可还原）', () => {
+    const store = createPostStore()
+
+    store.importMany([makePost({ id: 'f1', createdAt: 1, likes: 1, liked: true, favorited: true })])
+
+    expect(store.list()[0]).toEqual({
+      id: 'f1',
+      text: '现有动态',
+      createdAt: 1,
+      likes: 1,
+      liked: true,
+      favorited: true,
+    })
   })
 })
 

@@ -91,7 +91,7 @@ async function onFileChange(event: Event): Promise<void> {
   <section class="side-card">
     <h3 class="side-card__title">数据管理</h3>
     <p class="side-card__text">
-      导出 JSON 备份，或从备份文件恢复。导入会按 id 去重合并，不覆盖已有动态。
+      导出 JSON 备份（含点赞与收藏状态），或从备份文件恢复。导入会按 id 去重合并，不覆盖已有动态。
     </p>
 
     <div class="data-panel__actions">

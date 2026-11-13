@@ -24,7 +24,10 @@ export interface PostStore {
   setLiked(id: string, liked: boolean): Post | undefined
   /** 设置收藏状态（幂等）：只切换布尔值，未命中返回 undefined。 */
   setFavorited(id: string, favorited: boolean): Post | undefined
-  /** 批量写入（按 id 去重，已存在的保留服务端原有数据）。 */
+  /**
+   * 批量写入（按 id 去重，已存在的保留服务端原有数据）。
+   * 新增条目会带上导入数据里的点赞/收藏状态，从而支持从备份恢复。
+   */
   importMany(posts: readonly Post[]): ImportSummary
   /** 预演导入后的总条数，用于路由层在写入前判断是否超限。 */
   projectedTotal(posts: readonly Post[]): number
@@ -159,14 +162,17 @@ export function createPostStore(): PostStore {
           continue
         }
 
-        // 点赞/收藏属于服务端状态，导入时一律重置，不接受外部伪造的计数
+        // 单用户模型下点赞计数只会是 0/1：以 liked 为准收敛 likes，
+        // 既能把备份里的点赞/收藏状态还原回来，也能挡住越界值造成的矛盾数据
+        const liked = post.liked === true
+
         posts.set(post.id, {
           id: post.id,
           text: post.text,
           createdAt: post.createdAt,
-          likes: 0,
-          liked: false,
-          favorited: false,
+          likes: liked ? 1 : 0,
+          liked,
+          favorited: post.favorited === true,
         })
         imported += 1
       }

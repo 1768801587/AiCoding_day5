@@ -69,7 +69,7 @@ describe('validateImportPayload - 合法输入', () => {
 
     expect(validateImportPayload({ posts })).toEqual({
       ok: true,
-      // 导入数据不携带点赞/收藏状态，校验层统一归零
+      // 入参没有点赞/收藏字段时（旧备份），校验层补齐为默认值
       posts: posts.map((post) => ({ ...post, likes: 0, liked: false, favorited: false })),
       skipped: 0,
     })

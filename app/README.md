@@ -32,7 +32,7 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | 能力 | 说明 |
 | --- | --- |
 | 多标签页同步 | 写操作成功后 `BroadcastChannel` 广播，其它标签页自动 `refresh()`；切回页面时补刷 |
-| 数据导出 / 导入 | 侧栏「数据管理」可导出 JSON 备份；导入按 id 去重合并，重复导入幂等 |
+| 数据导出 / 导入 | 侧栏「数据管理」可导出 JSON 备份（含点赞/收藏状态）；导入按 id 去重合并，重复导入幂等，旧备份无状态字段时按默认值导入 |
 | 跨天统计刷新 | 到本地零点的定时器 + `visibilitychange` 补刷，「今日发布」自动归零 |
 | 字数口径修正 | 按 Unicode 码点计数，emoji 算一个字；移除原生 `maxlength`，改为软上限提示 |
 | 删除动态 | 每条动态两段式确认删除（3 秒未确认自动复原），先落盘成功后才更新列表 |
@@ -60,7 +60,7 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 | PUT | `/api/posts/:id/favorite` | 幂等设为已收藏 | 200 `Post` | 404 `NOT_FOUND` |
 | DELETE | `/api/posts/:id/favorite` | 幂等取消收藏 | 200 `Post` | 404 `NOT_FOUND` |
 
-> 点赞 / 收藏当前没有登录体系，是**单用户全局状态**（`likes` 只会是 0 或 1）。`PUT` / `DELETE` 语义幂等，重复请求不会让计数漂移；导入数据中的点赞收藏字段会被服务端重置为 `0 / false`。
+> 点赞 / 收藏当前没有登录体系，是**单用户全局状态**（`likes` 只会是 0 或 1）。`PUT` / `DELETE` 语义幂等，重复请求不会让计数漂移。导出 JSON 会带上 `likes / liked / favorited`，导入时一并恢复（单用户模型下按 `liked` 收敛计数）；不含这三个字段的旧备份仍可导入，导入后为默认值。
 
 约束：单条动态最多 500 字（按 Unicode 码点计）、最多 1000 条、请求体上限 1MB。
 
@@ -75,12 +75,12 @@ npm run dev        # 前端 http://localhost:5173 ，API http://localhost:8787
 开发顺序是自底向上的「红 → 绿 → 重构」，每一层都先写失败的测试再写实现：
 
 1. **服务端层**（`server/__tests__/`，node 环境）
-   - `store.spec.ts`：增删查、倒序、返回副本、同毫秒 id 不重复、幂等导入、重复 id 不覆盖、点赞收藏幂等与计数不为负。
+   - `store.spec.ts`：增删查、倒序、返回副本、同毫秒 id 不重复、幂等导入、重复 id 不覆盖、导入保留点赞收藏状态、点赞收藏幂等与计数不为负。
    - `validation.spec.ts`：trim、`500 / 501` 码点边界、emoji 计数、导入两种形状、脏条目计数、结构不符。
-   - `api.spec.ts`：`app.request()` 跑全部状态码与错误体形状（`EMPTY`/`TOO_LONG`/`LIMIT_REACHED`/`TOO_LARGE`/`UNSUPPORTED_MEDIA_TYPE`/`INVALID_SHAPE`/`NOT_FOUND`）、`Location` 头、204 无 body、响应不含堆栈；点赞/收藏 4 个端点的幂等与 404。
+   - `api.spec.ts`：`app.request()` 跑全部状态码与错误体形状（`EMPTY`/`TOO_LONG`/`LIMIT_REACHED`/`TOO_LARGE`/`UNSUPPORTED_MEDIA_TYPE`/`INVALID_SHAPE`/`NOT_FOUND`）、`Location` 头、204 无 body、响应不含堆栈；点赞/收藏 4 个端点的幂等与 404；导入保留状态与旧格式兼容。
 2. **客户端接口层**（`src/utils/`）
    - `api.spec.ts`：四个方法的请求断言、500→`SERVER`、后端错误码透传、网络失败→`NETWORK`、假定时器推进 abort→`TIMEOUT`、非 JSON 响应、204 空体、基址拼接。
-   - `draft.spec.ts` / `backup.spec.ts`：草稿读写降级、导出结构、导入解析与脏条目计数。
+   - `draft.spec.ts` / `backup.spec.ts`：草稿读写降级、导出结构（含点赞收藏字段）、导入解析与脏条目计数。
    - `broadcast.spec.ts`：跨标签页通知、取消订阅、无 `BroadcastChannel` 时静默降级。
 3. **状态层**（`src/stores/posts.spec.ts`，mock `utils/api`）
    - `hydrate()/refresh()` 成功与失败（失败时 `posts` 引用不变、`loadError` 有值、`isLoading` 复位）；

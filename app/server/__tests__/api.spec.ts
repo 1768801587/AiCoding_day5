@@ -307,6 +307,55 @@ describe('POST /api/posts/import', () => {
     expectErrorBody(await res.json(), 'INVALID_SHAPE')
     expect(store.count()).toBe(0)
   })
+
+  it('导入时保留点赞收藏状态，GET 列表可读回', async () => {
+    const store = createPostStore()
+    const app = createApp(store)
+
+    const res = await app.request('/api/posts/import', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        posts: [
+          { id: 'fav-1', text: '已收藏', createdAt: 2, likes: 1, liked: true, favorited: true },
+        ],
+      }),
+    })
+
+    expect(res.status).toBe(200)
+
+    const list = (await (await app.request('/api/posts')).json()) as Post[]
+    expect(list).toHaveLength(1)
+    expect(list[0]).toEqual({
+      id: 'fav-1',
+      text: '已收藏',
+      createdAt: 2,
+      likes: 1,
+      liked: true,
+      favorited: true,
+    })
+  })
+
+  it('旧格式（无点赞收藏字段）仍可导入，状态落到默认值', async () => {
+    const store = createPostStore()
+    const app = createApp(store)
+
+    const res = await app.request('/api/posts/import', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ posts: [{ id: 'legacy-1', text: '旧备份', createdAt: 3 }] }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(store.get('legacy-1')).toEqual({
+      id: 'legacy-1',
+      text: '旧备份',
+      createdAt: 3,
+      likes: 0,
+      liked: false,
+      favorited: false,
+    })
+  })
 })
 
 describe('DELETE /api/posts/:id', () => {
